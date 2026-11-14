@@ -1,0 +1,6 @@
+{
+  "name": "Vexora",
+  "description": "Vexora Browser — privacy-first browser shell with locally encrypted search index, AI-powered ad blocking, tab hibernation, zero-knowledge cross-device sync, and productivity analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

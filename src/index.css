@@ -1,0 +1,248 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   Vexora Theme Tokens (Midnight / Abyss / Daylight + 5 Accent Palettes)
+   ========================================================================== */
+:root {
+  --a1: #19e3ff;
+  --a2: #2a5bff;
+  --a3: #a23dff;
+  --a4: #e040fb;
+  --grad: linear-gradient(90deg, var(--a1), var(--a2) 45%, var(--a3) 80%, var(--a4));
+  --grad-soft: linear-gradient(135deg, color-mix(in srgb, var(--a2) 85%, transparent), color-mix(in srgb, var(--a3) 85%, transparent));
+  --vx-font: "Plus Jakarta Sans", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --vx-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --vx-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+html[data-theme="midnight"] {
+  --bg: #080b14;
+  --bg2: #0c1120;
+  --panel: #0f1527;
+  --raised: #141c33;
+  --hover: #ffffff0d;
+  --hover2: #ffffff16;
+  --line: #8aa6ff22;
+  --line2: #8aa6ff38;
+  --fg: #e8eeff;
+  --fg2: #a4b0d4;
+  --fg3: #7682a8;
+  --tab: #0c1120;
+  --tab-on: #141c33;
+  --glass: #0e1424e0;
+  color-scheme: dark;
+}
+
+html[data-theme="abyss"] {
+  --bg: #000000;
+  --bg2: #05060a;
+  --panel: #0a0c12;
+  --raised: #10131c;
+  --hover: #ffffff0d;
+  --hover2: #ffffff18;
+  --line: #ffffff1f;
+  --line2: #ffffff34;
+  --fg: #f2f5ff;
+  --fg2: #aab2cc;
+  --fg3: #78809c;
+  --tab: #05060a;
+  --tab-on: #10131c;
+  --glass: #07080ce6;
+  color-scheme: dark;
+}
+
+html[data-theme="daylight"] {
+  --bg: #eef2fb;
+  --bg2: #e4eaf7;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --hover: #0b1a4a0b;
+  --hover2: #0b1a4a14;
+  --line: #1a2a6c1e;
+  --line2: #1a2a6c33;
+  --fg: #101a3a;
+  --fg2: #4a5680;
+  --fg3: #737ea0;
+  --tab: #e4eaf7;
+  --tab-on: #ffffff;
+  --glass: #fffffff2;
+  color-scheme: light;
+}
+
+html[data-accent="sunset"] {
+  --a1: #ffb347;
+  --a2: #ff5e62;
+  --a3: #d63384;
+  --a4: #8a3dff;
+}
+
+html[data-accent="mint"] {
+  --a1: #7dffb2;
+  --a2: #19e3c8;
+  --a3: #2a9dff;
+  --a4: #5b6cff;
+}
+
+html[data-accent="rose"] {
+  --a1: #ff9ad5;
+  --a2: #ff4d9d;
+  --a3: #c13cff;
+  --a4: #6a5cff;
+}
+
+html[data-accent="mono"] {
+  --a1: #e8eeff;
+  --a2: #aab6dd;
+  --a3: #7f8cb8;
+  --a4: #5b6690;
+}
+
+html[data-theme="daylight"][data-accent="mono"] {
+  --a1: #2a3350;
+  --a2: #44507a;
+  --a3: #68739b;
+  --a4: #8c96b8;
+}
+
+body {
+  font-family: var(--vx-body);
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--vx-font);
+}
+
+code, pre, .font-mono {
+  font-family: var(--vx-mono);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.vx-shell-bg {
+  background:
+    radial-gradient(900px 380px at 12% -8%, color-mix(in srgb, var(--a2) 14%, transparent), transparent 70%),
+    radial-gradient(800px 360px at 95% -10%, color-mix(in srgb, var(--a3) 12%, transparent), transparent 70%),
+    var(--bg);
+}
+
+/* Start Page Animated Wallpapers from Vexora */
+.vx-wp {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.vx-wp i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: .42;
+  animation: vx-float 22s ease-in-out infinite;
+}
+
+.vx-wp i:nth-child(1) {
+  width: 44vw;
+  height: 44vw;
+  left: -10vw;
+  top: -14vw;
+  background: var(--a2);
+}
+
+.vx-wp i:nth-child(2) {
+  width: 38vw;
+  height: 38vw;
+  right: -8vw;
+  top: 6vw;
+  background: var(--a3);
+  animation-delay: -7s;
+  animation-duration: 27s;
+}
+
+.vx-wp i:nth-child(3) {
+  width: 32vw;
+  height: 32vw;
+  left: 30vw;
+  bottom: -18vw;
+  background: var(--a1);
+  opacity: .22;
+  animation-delay: -13s;
+}
+
+.vx-wp[data-wp="ocean"] i {
+  opacity: .28;
+  border-radius: 40%;
+  animation-name: vx-drift;
+}
+
+.vx-wp[data-wp="grid"] i {
+  display: none;
+}
+
+.vx-wp[data-wp="grid"] {
+  background:
+    linear-gradient(transparent 60%, color-mix(in srgb, var(--a3) 20%, transparent)),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--a1) 18%, transparent) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--a1) 18%, transparent) 0 1px, transparent 1px 64px);
+  -webkit-mask-image: linear-gradient(transparent, #000 70%);
+  mask-image: linear-gradient(transparent, #000 70%);
+}
+
+.vx-wp[data-wp="none"] {
+  display: none;
+}
+
+@keyframes vx-float {
+  50% { transform: translate(5vw, 4vw) scale(1.12); }
+}
+
+@keyframes vx-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(4vw, -3vw) rotate(25deg); }
+}
+
+@keyframes vx-bob {
+  50% { transform: translateY(-6px); }
+}
+
+.vx-logo-bob {
+  filter: drop-shadow(0 0 28px color-mix(in srgb, var(--a2) 55%, transparent));
+  animation: vx-bob 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-wp i, .vx-logo-bob {
+    animation: none !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg3);
+}
