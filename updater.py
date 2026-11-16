@@ -17,15 +17,19 @@ def fetch(url, timeout=20):
 
 class Updater(QObject):
     available = Signal(str)
+    uptodate = Signal()
+    check_failed = Signal(str)
     progress = Signal(int)
     failed = Signal(str)
     done = Signal()
 
-    def check(self):
-        threading.Thread(target=self._check, daemon=True).start()
+    def check(self, manual=False):
+        threading.Thread(target=self._check, args=(manual,), daemon=True).start()
 
-    def _check(self):
+    def _check(self, manual=False):
         if REPO.startswith("OWNER/"):
+            if manual:
+                self.check_failed.emit("This build has no update source configured.")
             return
         try:
             rel = json.load(fetch(f"https://api.github.com/repos/{REPO}/releases/latest"))
@@ -34,8 +38,11 @@ class Updater(QObject):
             if parse(ver) > parse(VERSION) and SETUP in assets and SUM in assets:
                 self.ver, self.url, self.sum_url = ver, assets[SETUP], assets[SUM]
                 self.available.emit(ver)
-        except Exception:
-            pass  # offline or rate-limited: try again later
+            elif manual:
+                self.uptodate.emit()
+        except Exception as e:
+            if manual:
+                self.check_failed.emit("Could not reach the update server.")
 
     def install(self):
         threading.Thread(target=self._install, daemon=True).start()

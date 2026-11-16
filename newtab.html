@@ -4,32 +4,87 @@
 <style>
   :root { --bg:#141416; --surface:#1e1e22; --line:#2b2b31; --text:#e6e6ea; --muted:#8d8d96; --accent:#8a6df5; }
   * { box-sizing: border-box; margin: 0; }
-  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px;
-    background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding-bottom: 8vh; }
-  .brand { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
-  .brand img { width: 40px; height: 40px; }
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding-bottom: 6vh; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--muted); margin-bottom: 28px; }
+  .brand img { width: 28px; height: 28px; }
+  #time { font-size: 64px; font-weight: 300; letter-spacing: -.02em; line-height: 1; }
+  #date { color: var(--muted); margin: 8px 0 32px; }
   input { width: min(560px, 88vw); height: 46px; padding: 0 18px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--surface); color: var(--text); font: inherit; font-size: 15px; outline: none; }
   input:focus { border-color: var(--accent); }
   input::placeholder { color: var(--muted); }
-  .dial { display: grid; grid-template-columns: repeat(6, 88px); gap: 8px; }
-  a { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; border-radius: 8px;
-    color: var(--muted); text-decoration: none; font-size: 12px; }
-  a:hover { background: var(--surface); color: var(--text); }
-  a i { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--surface);
+  .dial { display: grid; grid-template-columns: repeat(auto-fill, 92px); justify-content: center; gap: 6px;
+    width: min(640px, 92vw); margin-top: 36px; }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px;
+    border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 12px; }
+  .tile:hover { background: var(--surface); color: var(--text); }
+  .tile i { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--surface);
     border: 1px solid var(--line); color: var(--text); font: normal 600 16px "Segoe UI", sans-serif; }
+  .tile span { max-width: 84px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tile b { position: absolute; top: 4px; right: 6px; display: none; width: 18px; height: 18px; line-height: 17px; text-align: center;
+    border-radius: 4px; font-weight: 400; color: var(--muted); }
+  .tile:hover b { display: block; }
+  .tile b:hover { background: var(--line); color: var(--text); }
+  button.add { background: none; border: 0; cursor: pointer; font: inherit; font-size: 12px; }
+  button.add i { font-size: 20px; font-weight: 300; }
+  form { display: none; gap: 8px; margin-top: 16px; }
+  form.on { display: flex; }
+  form input { width: 180px; height: 36px; font-size: 13px; padding: 0 12px; }
+  form button { height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  form button.x { background: var(--surface); color: var(--muted); }
 </style>
 <div class="brand"><img src="assets/logo.png" alt="">Vexora</div>
+<div id="time"></div>
+<div id="date"></div>
 <input id="q" autofocus autocomplete="off" spellcheck="false" placeholder="Search or enter address">
 <div class="dial" id="dial"></div>
+<form id="form">
+  <input id="fn" placeholder="Name" autocomplete="off">
+  <input id="fu" placeholder="Address" autocomplete="off">
+  <button>Add</button><button type="button" class="x" id="fx">Cancel</button>
+</form>
 <script src="resolve.js"></script>
 <script>
-  const sites = [['YouTube','https://www.youtube.com'],['GitHub','https://github.com'],['Wikipedia','https://www.wikipedia.org'],
-    ['Reddit','https://www.reddit.com'],['Gmail','https://mail.google.com'],['Maps','https://maps.google.com']];
-  for (const [n, u] of sites) {
-    const a = document.createElement('a'); a.href = u;
-    const i = document.createElement('i'); i.textContent = n[0];
-    a.append(i, n); dial.append(a);
+  const P = new URLSearchParams(location.search);
+  for (const k of ['bg', 'surface', 'line', 'text', 'muted', 'accent'])
+    if (P.get(k)) document.documentElement.style.setProperty('--' + k, P.get(k));
+
+  function tick() {
+    const d = new Date();
+    time.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    date.textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   }
-  q.addEventListener('keydown', e => { if (e.key === 'Enter' && q.value.trim()) location.href = resolve(q.value); });
+  tick(); setInterval(tick, 10000);
+
+  q.addEventListener('keydown', e => { if (e.key === 'Enter' && q.value.trim()) location.href = resolve(q.value, P.get('e')); });
+
+  const DEFAULT = [['YouTube', 'https://www.youtube.com'], ['GitHub', 'https://github.com'], ['Wikipedia', 'https://www.wikipedia.org'],
+    ['Reddit', 'https://www.reddit.com'], ['Gmail', 'https://mail.google.com'], ['Maps', 'https://maps.google.com']];
+  let sites;
+  try { sites = JSON.parse(localStorage.getItem('vx.dial')) || DEFAULT; } catch { sites = DEFAULT; }
+  const save = () => { try { localStorage.setItem('vx.dial', JSON.stringify(sites)); } catch {} };
+
+  function draw() {
+    dial.replaceChildren();
+    sites.forEach(([n, u], i) => {
+      const a = document.createElement('a'); a.className = 'tile'; a.href = u;
+      const ic = document.createElement('i'); ic.textContent = n[0].toUpperCase();
+      const lb = document.createElement('span'); lb.textContent = n;
+      const x = document.createElement('b'); x.textContent = '×'; x.title = 'Remove';
+      x.onclick = e => { e.preventDefault(); sites.splice(i, 1); save(); draw(); };
+      a.append(ic, lb, x); dial.append(a);
+    });
+    const add = document.createElement('button'); add.className = 'tile add';
+    const plus = document.createElement('i'); plus.textContent = '+';
+    add.append(plus, 'Add'); add.onclick = () => { form.classList.add('on'); fn.focus(); };
+    dial.append(add);
+  }
+  draw();
+  fx.onclick = () => form.classList.remove('on');
+  form.onsubmit = e => {
+    e.preventDefault();
+    const u = resolve(fu.value);
+    if (fn.value.trim() && /^https?:/.test(u)) { sites.push([fn.value.trim(), u]); save(); draw(); form.reset(); form.classList.remove('on'); }
+  };
 </script>

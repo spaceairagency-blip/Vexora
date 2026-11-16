@@ -2,6 +2,9 @@
 
 Real Chromium engine (Qt WebEngine) driven from Python. No Node.js.
 
+## Features
+Bookmarks, history, downloads, command palette (Ctrl+K), find in page, private tabs, themes, backup.
+
 ## Run from source
     pip install -r requirements.txt
     python main.py
