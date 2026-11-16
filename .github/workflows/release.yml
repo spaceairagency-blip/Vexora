@@ -1,0 +1,46 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  RELEASES_REPO: OWNER/vexora-releases   # <- the PUBLIC repo that holds installers only
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Stamp version
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          sed -i "s/^VERSION = .*/VERSION = \"$V\"/" version.py
+          sed -i "s#^REPO = .*#REPO = \"$RELEASES_REPO\"#" version.py
+          echo "V=$V" >> "$GITHUB_ENV"
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build app
+        run: >
+          pyinstaller --noconfirm --windowed --name Vexora --icon assets/icon.ico
+          --add-data "newtab.html;." --add-data "resolve.js;." --add-data "trackers.json;."
+          --add-data "assets;assets" main.py
+
+      - name: Build installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:V" installer.iss
+
+      - name: Publish to the public releases repo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          cd dist-installer
+          sha256sum Vexora-Setup.exe | cut -d' ' -f1 > Vexora-Setup.exe.sha256
+          gh release create "$GITHUB_REF_NAME" Vexora-Setup.exe Vexora-Setup.exe.sha256 \
+            --repo "$RELEASES_REPO" --title "Vexora $V" --notes "Vexora $V"

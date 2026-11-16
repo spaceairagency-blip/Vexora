@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>New tab</title>
+<style>
+  :root { --bg:#141416; --surface:#1e1e22; --line:#2b2b31; --text:#e6e6ea; --muted:#8d8d96; --accent:#8a6df5; }
+  * { box-sizing: border-box; margin: 0; }
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px;
+    background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding-bottom: 8vh; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+  .brand img { width: 40px; height: 40px; }
+  input { width: min(560px, 88vw); height: 46px; padding: 0 18px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--text); font: inherit; font-size: 15px; outline: none; }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+  .dial { display: grid; grid-template-columns: repeat(6, 88px); gap: 8px; }
+  a { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; border-radius: 8px;
+    color: var(--muted); text-decoration: none; font-size: 12px; }
+  a:hover { background: var(--surface); color: var(--text); }
+  a i { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--line); color: var(--text); font: normal 600 16px "Segoe UI", sans-serif; }
+</style>
+<div class="brand"><img src="assets/logo.png" alt="">Vexora</div>
+<input id="q" autofocus autocomplete="off" spellcheck="false" placeholder="Search or enter address">
+<div class="dial" id="dial"></div>
+<script src="resolve.js"></script>
+<script>
+  const sites = [['YouTube','https://www.youtube.com'],['GitHub','https://github.com'],['Wikipedia','https://www.wikipedia.org'],
+    ['Reddit','https://www.reddit.com'],['Gmail','https://mail.google.com'],['Maps','https://maps.google.com']];
+  for (const [n, u] of sites) {
+    const a = document.createElement('a'); a.href = u;
+    const i = document.createElement('i'); i.textContent = n[0];
+    a.append(i, n); dial.append(a);
+  }
+  q.addEventListener('keydown', e => { if (e.key === 'Enter' && q.value.trim()) location.href = resolve(q.value); });
+</script>
