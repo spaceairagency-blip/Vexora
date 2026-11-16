@@ -3,21 +3,24 @@
 Real Chromium engine (Qt WebEngine) driven from Python. No Node.js.
 
 ## Features
-Bookmarks, history, downloads, command palette (Ctrl+K), find in page, private tabs, themes, backup.
+Bookmarks, history, downloads, command palette (Ctrl+K), find in page, private tabs, themes, backup, small updates.
 
 ## Run from source
     pip install -r requirements.txt
     python main.py
 
-## Release flow (private source repo -> public installer repo)
-1. Create a PUBLIC repo that holds installers only, e.g. `vexora-releases` (no source in it).
-2. Edit `RELEASES_REPO` at the top of `.github/workflows/release.yml` to `YOU/vexora-releases`.
-3. Create a fine-grained token: only the releases repo, permission "Contents: read and write".
-   Add it to the PRIVATE repo as an Actions secret named `RELEASES_TOKEN`.
-4. In Codespaces, when you are done editing:  `./release.sh 2.0.1`
-5. GitHub Actions (Windows runner) builds with PyInstaller + Inno Setup and publishes
-   `Vexora-Setup.exe` + its `.sha256` to the releases repo.
-6. Running copies check every 6 hours (and at launch), show an "Update now" bar, download,
-   verify the checksum, run the installer silently and relaunch.
+## Release (private source repo -> public installer repo)
+1. `RELEASES_REPO` at the top of `.github/workflows/release.yml` must be `YOU/vexora-releases`.
+2. Actions secret `RELEASES_TOKEN` = fine-grained token with Contents: read and write on the releases repo only.
+3. Commit and push, THEN tag with a number higher than every existing tag:
+       git tag v2.2.0 && git push origin v2.2.0
+4. The Action builds the app, trims unused Qt, builds the installer and a small patch, and publishes
+   Vexora-Setup.exe, Vexora-Patch.zip and update.json.
+
+## How updates work
+- Same Qt/Chromium as the installed copy: downloads Vexora-Patch.zip (about 2 MB), swaps Vexora.exe and the data
+  files, restarts. A few seconds.
+- Qt/Chromium or a new native dependency changed: downloads the full installer and runs it silently.
+- The app decides by comparing base_id.txt (a fingerprint of the heavy files) with update.json.
 
 Never put a GitHub token inside the app: anything shipped in the exe can be extracted.

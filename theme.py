@@ -17,16 +17,16 @@ QLabel#title { font-size:15px; font-weight:600; }
 #bar, #banner, #find, #sidebar, #bmbar { background:$surface; }
 #bar, #banner, #find, #bmbar { border-bottom:1px solid $line; }
 #sidebar { border-right:1px solid $line; }
-QToolButton { border:0; border-radius:6px; padding:6px; background:transparent; color:$text; }
+QToolButton { border:0; border-radius:8px; padding:7px; background:transparent; color:$text; }
 QToolButton:hover { background:$hover; }
 QToolButton::menu-indicator { image:none; }
 QToolButton#bm { padding:4px 8px; color:$muted; }
 QToolButton#bm:hover { color:$text; }
-QLineEdit { background:$bg; border:1px solid transparent; border-radius:8px; padding:6px 12px; selection-background-color:$accent; selection-color:#fff; }
+QLineEdit { background:$bg; border:1px solid transparent; border-radius:10px; padding:8px 14px; selection-background-color:$accent; selection-color:#fff; }
 QLineEdit:focus { border-color:$accent; }
 #sidebar QWidget { background:transparent; }
 QLineEdit#sbsearch { background:$bg; margin:0 10px; }
-QTabBar::tab { background:transparent; color:$muted; padding:8px 10px; min-width:90px; max-width:200px; border-top-left-radius:8px; border-top-right-radius:8px; margin-right:2px; }
+QTabBar::tab { background:transparent; color:$muted; padding:9px 12px; min-width:100px; max-width:220px; border-top-left-radius:10px; border-top-right-radius:10px; margin-right:2px; }
 QTabBar::tab:selected { background:$surface; color:$text; }
 QTabBar::tab:hover:!selected { background:$surface; }
 QTabBar::close-button { image:url("$close"); subcontrol-position:right; border-radius:4px; margin:0 2px; }

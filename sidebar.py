@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QBrush, QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMenu,
@@ -23,6 +23,7 @@ class Page(QWidget):
         self.search.setObjectName("sbsearch")
         self.list = QListWidget()
         self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.setIconSize(QSize(16, 16))
         v.addWidget(self.search)
         v.addWidget(self.list, 1)
         self.body = v
@@ -60,7 +61,7 @@ class Bookmarks(Page):
         self.list.clear()
         for b in self.store.bookmarks:
             if q in (b["title"] + b["url"]).lower():
-                it = QListWidgetItem(f'{b["title"]}\n{b["url"]}')
+                it = QListWidgetItem(self.store.icon(b["url"]), f'{b["title"]}\n{b["url"]}')
                 it.setData(URL, b["url"])
                 self.list.addItem(it)
 
@@ -100,7 +101,7 @@ class History(Page):
                 head.setFlags(Qt.ItemFlag.NoItemFlags)
                 head.setForeground(QBrush(QColor("#8a8a93")))
                 self.list.addItem(head)
-            it = QListWidgetItem(f'{h["title"]}\n{h["url"]}')
+            it = QListWidgetItem(self.store.icon(h["url"]), f'{h["title"]}\n{h["url"]}')
             it.setData(URL, h["url"])
             self.list.addItem(it)
             shown += 1

@@ -2,7 +2,7 @@ import ctypes, json, re, sys
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-from PySide6.QtCore import Qt, QStandardPaths, QTimer, QUrl
+from PySide6.QtCore import QSize, Qt, QStandardPaths, QTimer, QUrl
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, Q
 from palette import Palette
 from settings import Settings
 from sidebar import Sidebar
-from store import ENGINES, Store
+from store import ENGINES, Store, host_key, icon_dir
 from theme import build as build_theme
 from updater import Updater
 from version import VERSION
@@ -179,6 +179,7 @@ class Browser(QMainWindow):
         self.url.returnPressed.connect(self.go)
         updater.available.connect(self.on_update_available)
         updater.progress.connect(lambda n: self.banner_text.setText(f"Downloading update… {n}%"))
+        updater.status.connect(self.banner_text.setText)
         updater.failed.connect(self.on_update_failed)
         updater.done.connect(QApplication.quit)
         for p in (profile, private_profile): p.downloadRequested.connect(self.on_download)
@@ -240,7 +241,7 @@ class Browser(QMainWindow):
 
     def newtab_url(self):
         s, t = self.store.settings, self.t
-        q = urlencode({k: t[k] for k in ("bg", "surface", "line", "text", "muted", "accent")} | {"e": ENGINES[s["engine"]]})
+        q = urlencode({k: t[k] for k in ("bg", "surface", "line", "text", "muted", "accent")} | {"e": ENGINES[s["engine"]], "icons": QUrl.fromLocalFile(str(icon_dir())).toString() + "/"})
         return NEWTAB_BASE + "?" + q
 
     # ---- tabs ----
@@ -252,13 +253,21 @@ class Browser(QMainWindow):
         if private: self.tabbar.setTabTextColor(i, QColor(self.store.settings["accent"]))
         def title(t, v=view): self.tabbar.setTabText(self.stack.indexOf(v), ("Private: " if v.private else "") + (t or "New tab"))
         view.titleChanged.connect(title)
-        view.iconChanged.connect(lambda ic, v=view: self.tabbar.setTabIcon(self.stack.indexOf(v), ic))
+        view.iconChanged.connect(lambda ic, v=view: self.on_icon(v, ic))
         view.urlChanged.connect(lambda _u, v=view: v is self.cur() and self.sync_bar())
         view.loadStarted.connect(lambda v=view: v is self.cur() and self.sync_bar())
         view.loadFinished.connect(lambda ok, v=view: self.on_loaded(v, ok))
         if activate: self.tabbar.setCurrentIndex(i)
         if url: view.load(QUrl(url))
         return view
+
+    def on_icon(self, v, ic):
+        self.tabbar.setTabIcon(self.stack.indexOf(v), ic)
+        u = v.shown()
+        if v.private or not u.startswith(("http://", "https://")): return
+        if self.store.save_icon(u, ic) and any(host_key(b["url"]) == host_key(u) for b in self.store.bookmarks):
+            self.refresh_bookmarks()
+            if self.sidebar.isVisible(): self.sidebar.refresh()
 
     def open_here(self, url): self.cur().load(QUrl(url)); self.cur().setFocus()
 
@@ -323,6 +332,8 @@ class Browser(QMainWindow):
         for b in self.store.bookmarks:
             btn = QToolButton(); btn.setObjectName("bm"); btn.setToolTip(b["url"])
             btn.setText(b["title"][:22] + ("…" if len(b["title"]) > 22 else ""))
+            btn.setIcon(self.store.icon(b["url"])); btn.setIconSize(QSize(14, 14))
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             btn.clicked.connect(lambda _c, u=b["url"]: self.open_here(u))
             btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             btn.customContextMenuRequested.connect(lambda _p, u=b["url"], w=btn: self.bookmark_menu(u, w))

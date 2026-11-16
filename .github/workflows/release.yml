@@ -4,14 +4,14 @@ on:
     tags: ["v*"]
 
 env:
-  RELEASES_REPO:  spaceairagency-blip/vexora-releases   # <- the PUBLIC repo that holds installers only
+  RELEASES_REPO: spaceairagency-blip/vexora-releases   # PUBLIC repo that holds installers only
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
 
       - name: Stamp version
@@ -30,10 +30,18 @@ jobs:
           --add-data "newtab.html;." --add-data "resolve.js;." --add-data "trackers.json;."
           --add-data "assets;assets" main.py
 
+      - name: Trim unused Qt parts and fingerprint the heavy base
+        run: |
+          python tools/build_tools.py prune dist/Vexora
+          python tools/build_tools.py baseid dist/Vexora
+
       - name: Build installer
         run: |
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:V" installer.iss
+
+      - name: Build small update patch and manifest
+        run: python tools/build_tools.py manifest dist/Vexora dist-installer
 
       - name: Publish to the public releases repo
         shell: bash
@@ -42,5 +50,5 @@ jobs:
         run: |
           cd dist-installer
           sha256sum Vexora-Setup.exe | cut -d' ' -f1 > Vexora-Setup.exe.sha256
-          gh release create "$GITHUB_REF_NAME" Vexora-Setup.exe Vexora-Setup.exe.sha256 \
+          gh release create "$GITHUB_REF_NAME" Vexora-Setup.exe Vexora-Setup.exe.sha256 Vexora-Patch.zip update.json \
             --repo "$RELEASES_REPO" --title "Vexora $V" --notes "Vexora $V"

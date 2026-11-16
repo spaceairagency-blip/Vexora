@@ -5,36 +5,42 @@
   :root { --bg:#141416; --surface:#1e1e22; --line:#2b2b31; --text:#e6e6ea; --muted:#8d8d96; --accent:#8a6df5; }
   * { box-sizing: border-box; margin: 0; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding-bottom: 6vh; }
-  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--muted); margin-bottom: 28px; }
-  .brand img { width: 28px; height: 28px; }
-  #time { font-size: 64px; font-weight: 300; letter-spacing: -.02em; line-height: 1; }
-  #date { color: var(--muted); margin: 8px 0 32px; }
-  input { width: min(560px, 88vw); height: 46px; padding: 0 18px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding: 4vh 0 6vh; }
+  .logo { width: 120px; height: 120px; }
+  .word { margin: 6px 0 22px; font-size: 22px; font-weight: 600; letter-spacing: .32em; padding-left: .32em; }
+  #time { display: flex; align-items: baseline; gap: 2px; font-size: 68px; font-weight: 300; letter-spacing: -.02em; line-height: 1;
+    font-variant-numeric: tabular-nums; }
+  #time .s { color: var(--accent); font-size: 38px; margin-left: 4px; }
+  #time .p { color: var(--muted); font-size: 18px; margin-left: 8px; letter-spacing: 0; }
+  #date { color: var(--muted); margin: 10px 0 30px; }
+  input { width: min(580px, 88vw); height: 48px; padding: 0 20px; border: 1px solid var(--line); border-radius: 12px;
     background: var(--surface); color: var(--text); font: inherit; font-size: 15px; outline: none; }
   input:focus { border-color: var(--accent); }
   input::placeholder { color: var(--muted); }
-  .dial { display: grid; grid-template-columns: repeat(auto-fill, 92px); justify-content: center; gap: 6px;
-    width: min(640px, 92vw); margin-top: 36px; }
-  .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px;
-    border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 12px; }
-  .tile:hover { background: var(--surface); color: var(--text); }
-  .tile i { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--surface);
-    border: 1px solid var(--line); color: var(--text); font: normal 600 16px "Segoe UI", sans-serif; }
-  .tile span { max-width: 84px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .tile b { position: absolute; top: 4px; right: 6px; display: none; width: 18px; height: 18px; line-height: 17px; text-align: center;
-    border-radius: 4px; font-weight: 400; color: var(--muted); }
+  .dial { display: grid; grid-template-columns: repeat(auto-fill, 104px); justify-content: center; gap: 10px;
+    width: min(820px, 94vw); margin-top: 34px; }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 6px 12px;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted);
+    text-decoration: none; font-size: 12px; }
+  .tile:hover { border-color: var(--accent); color: var(--text); }
+  .tile i { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--bg);
+    color: var(--text); font: normal 600 15px "Segoe UI", sans-serif; overflow: hidden; }
+  .tile i img { width: 22px; height: 22px; }
+  .tile span { max-width: 92px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tile b { position: absolute; top: 4px; right: 5px; display: none; width: 18px; height: 18px; line-height: 17px; text-align: center;
+    border-radius: 5px; font-weight: 400; color: var(--muted); }
   .tile:hover b { display: block; }
   .tile b:hover { background: var(--line); color: var(--text); }
-  button.add { background: none; border: 0; cursor: pointer; font: inherit; font-size: 12px; }
-  button.add i { font-size: 20px; font-weight: 300; }
+  button.add { cursor: pointer; font: inherit; font-size: 12px; background: none; border-style: dashed; }
+  button.add i { font-size: 20px; font-weight: 300; background: none; }
   form { display: none; gap: 8px; margin-top: 16px; }
   form.on { display: flex; }
-  form input { width: 180px; height: 36px; font-size: 13px; padding: 0 12px; }
-  form button { height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  form input { width: 180px; height: 38px; font-size: 13px; padding: 0 12px; border-radius: 9px; }
+  form button { height: 38px; padding: 0 16px; border: 0; border-radius: 9px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
   form button.x { background: var(--surface); color: var(--muted); }
 </style>
-<div class="brand"><img src="assets/logo.png" alt="">Vexora</div>
+<img class="logo" src="assets/logo.png" alt="">
+<div class="word">VEXORA</div>
 <div id="time"></div>
 <div id="date"></div>
 <input id="q" autofocus autocomplete="off" spellcheck="false" placeholder="Search or enter address">
@@ -50,12 +56,20 @@
   for (const k of ['bg', 'surface', 'line', 'text', 'muted', 'accent'])
     if (P.get(k)) document.documentElement.style.setProperty('--' + k, P.get(k));
 
+  const fmt = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   function tick() {
-    const d = new Date();
-    time.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    date.textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const d = new Date(), main = [], parts = fmt.formatToParts(d);
+    time.replaceChildren();
+    for (const p of parts) {
+      if (p.type === 'second') { const s = document.createElement('span'); s.className = 's'; s.textContent = ':' + p.value; time.append(s); }
+      else if (p.type === 'dayPeriod') { const s = document.createElement('span'); s.className = 'p'; s.textContent = p.value; time.append(s); }
+      else if (p.type !== 'literal') main.push(p.value);
+    }
+    time.prepend(main.join(':'));
+    const h = d.getHours(), g = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    date.textContent = g + ' · ' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   }
-  tick(); setInterval(tick, 10000);
+  tick(); setInterval(tick, 1000);
 
   q.addEventListener('keydown', e => { if (e.key === 'Enter' && q.value.trim()) location.href = resolve(q.value, P.get('e')); });
 
@@ -64,12 +78,17 @@
   let sites;
   try { sites = JSON.parse(localStorage.getItem('vx.dial')) || DEFAULT; } catch { sites = DEFAULT; }
   const save = () => { try { localStorage.setItem('vx.dial', JSON.stringify(sites)); } catch {} };
+  const key = u => { try { return new URL(u).hostname.replace(/[^A-Za-z0-9._-]/g, '_'); } catch { return ''; } };
 
   function draw() {
     dial.replaceChildren();
     sites.forEach(([n, u], i) => {
       const a = document.createElement('a'); a.className = 'tile'; a.href = u;
       const ic = document.createElement('i'); ic.textContent = n[0].toUpperCase();
+      if (P.get('icons') && key(u)) {                      // real site icon, once you have visited the site
+        const im = new Image(); im.src = P.get('icons') + key(u) + '.png';
+        im.onload = () => { ic.textContent = ''; ic.append(im); };
+      }
       const lb = document.createElement('span'); lb.textContent = n;
       const x = document.createElement('b'); x.textContent = '×'; x.title = 'Remove';
       x.onclick = e => { e.preventDefault(); sites.splice(i, 1); save(); draw(); };

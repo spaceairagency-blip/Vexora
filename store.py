@@ -1,7 +1,9 @@
 """All user data: settings, bookmarks, history. One JSON file in %APPDATA%\\Vexora."""
-import json, time
+import json, re, time
 from pathlib import Path
+from urllib.parse import urlsplit
 from PySide6.QtCore import QStandardPaths, QTimer
+from PySide6.QtGui import QIcon
 
 ENGINES = {
     "Google": "https://www.google.com/search?q=%s",
@@ -28,6 +30,17 @@ def cache_dir():
     return d
 
 
+def icon_dir():
+    d = data_dir() / "icons"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def host_key(url):
+    host = urlsplit(url).hostname or ""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", host)
+
+
 def _entries(items):
     return [{"url": i["url"], "title": str(i.get("title") or i["url"]), **({"t": float(i["t"])} if "t" in i else {})}
             for i in items if isinstance(i, dict) and isinstance(i.get("url"), str)]
@@ -42,6 +55,7 @@ class Store:
             self.import_data(d, save=False)
         except (OSError, ValueError):
             pass
+        self._icons = {}
         self._timer = QTimer()
         self._timer.setSingleShot(True)
         self._timer.setInterval(3000)
@@ -61,6 +75,26 @@ class Store:
     def set(self, key, val):
         self.settings[key] = val
         self.flush()
+
+    # site icons (only saved from normal tabs, never private ones)
+    def icon(self, url):
+        key = host_key(url)
+        if key not in self._icons:
+            p = icon_dir() / f"{key}.png"
+            self._icons[key] = QIcon(str(p)) if key and p.exists() else QIcon()
+        return self._icons[key]
+
+    def save_icon(self, url, icon):
+        key, p = host_key(url), None
+        if not key or icon.isNull():
+            return False
+        p = icon_dir() / f"{key}.png"
+        new = not p.exists()
+        pm = icon.pixmap(32, 32)
+        if pm.isNull() or not pm.save(str(p), "PNG"):
+            return False
+        self._icons.pop(key, None)
+        return new
 
     # bookmarks
     def is_bookmarked(self, url):
