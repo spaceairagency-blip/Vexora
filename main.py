@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from PySide6.QtCore import QSize, Qt, QStandardPaths, QTimer, QUrl
-from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
                                      QWebEngineUrlRequestInterceptor)
@@ -15,7 +15,8 @@ from palette import Palette
 from settings import Settings
 from sidebar import Sidebar
 from store import ENGINES, Store, host_key, icon_dir
-from theme import build as build_theme
+from motion import Crossfade
+from theme import build as build_theme, resolve as resolve_theme
 from updater import Updater
 from version import VERSION
 
@@ -186,6 +187,8 @@ class Browser(QMainWindow):
         self.setup_shortcuts()
         self.apply_web_settings(); self.blocker.enabled = store.settings["shield"]
         self.apply_theme()
+        QGuiApplication.styleHints().colorSchemeChanged.connect(
+            lambda _s: self.store.settings["appearance"] == "system" and self.apply_theme())
 
         t = QTimer(self); t.timeout.connect(self.refresh_shield); t.start(1000)
         t2 = QTimer(self); t2.timeout.connect(updater.check); t2.start(6 * 3600 * 1000)
@@ -193,9 +196,14 @@ class Browser(QMainWindow):
         self.restore()
 
     # ---- theme & settings ----
-    def apply_theme(self):
-        s = self.store.settings
-        qss, self.t = build_theme(s["theme"], s["accent"])
+    def system_dark(self):
+        return QGuiApplication.styleHints().colorScheme() != Qt.ColorScheme.Light
+
+    def apply_theme(self, settings=None):
+        """Apply the stored theme, or `settings` (a settings-shaped dict) to preview one without saving."""
+        s = settings or self.store.settings
+        fade = Crossfade(self.centralWidget(), self.store)
+        qss, self.t = build_theme(resolve_theme(s, self.system_dark()))
         QApplication.instance().setStyleSheet(qss)
         c = self.t["icon"]
         for b, n in ((self.btn_plus, "plus"), (self.btn_back, "back"), (self.btn_fwd, "forward"), (self.btn_side, "sidebar"),
@@ -204,8 +212,9 @@ class Browser(QMainWindow):
         for i in range(self.stack.count()):
             v = self.stack.widget(i)
             if not v.shown(): v.load(QUrl(self.newtab_url()))
-            self.tabbar.setTabTextColor(i, QColor(s["accent"]) if v.private else QColor(self.t["muted"]))
+            self.tabbar.setTabTextColor(i, QColor(self.t["accent"]) if v.private else QColor(self.t["muted"]))
         self.sync_bar(); self.style_titlebar()
+        fade.run()
 
     def style_titlebar(self):
         if sys.platform != "win32" or not self.isVisible(): return
@@ -225,7 +234,7 @@ class Browser(QMainWindow):
 
     def apply_setting(self, key, val):
         self.store.set(key, val)
-        if key in ("theme", "accent"): self.apply_theme()
+        if key in ("theme", "appearance", "overrides", "intensity", "custom_themes"): self.apply_theme()
         elif key == "bookmarks_bar": self.refresh_bookmarks()
         elif key == "shield": self.blocker.enabled = val
         elif key == "force_dark": self.apply_web_settings()
@@ -241,7 +250,7 @@ class Browser(QMainWindow):
 
     def newtab_url(self):
         s, t = self.store.settings, self.t
-        q = urlencode({k: t[k] for k in ("bg", "surface", "line", "text", "muted", "accent")} | {"e": ENGINES[s["engine"]], "icons": QUrl.fromLocalFile(str(icon_dir())).toString() + "/"})
+        q = urlencode({k: t[k] for k in ("bg", "surface", "line", "text", "muted", "accent", "accent2")} | {"e": ENGINES[s["engine"]], "icons": QUrl.fromLocalFile(str(icon_dir())).toString() + "/"})
         return NEWTAB_BASE + "?" + q
 
     # ---- tabs ----
@@ -250,7 +259,7 @@ class Browser(QMainWindow):
     def new_tab(self, url=None, activate=True, private=False):
         view = Tab(self, private)
         self.stack.addWidget(view); i = self.tabbar.addTab("Private" if private else "New tab")
-        if private: self.tabbar.setTabTextColor(i, QColor(self.store.settings["accent"]))
+        if private: self.tabbar.setTabTextColor(i, QColor(self.t["accent"]))
         def title(t, v=view): self.tabbar.setTabText(self.stack.indexOf(v), ("Private: " if v.private else "") + (t or "New tab"))
         view.titleChanged.connect(title)
         view.iconChanged.connect(lambda ic, v=view: self.on_icon(v, ic))

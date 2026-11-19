@@ -1,13 +1,85 @@
-"""Flat, solid-colour themes. No gradients."""
-from string import Template
-from store import cache_dir
+"""Design tokens and theme engine. Flat, solid-colour surfaces; accents are used sparingly.
 
-THEMES = {
-    "Dark":  dict(bg="#141416", surface="#1e1e22", hover="#2a2a30", line="#2b2b31", text="#e6e6ea", muted="#8d8d96", icon="#b4b4bb", dark=True),
-    "Black": dict(bg="#000000", surface="#0d0d0f", hover="#1b1b1f", line="#232327", text="#ececf0", muted="#85858e", icon="#b4b4bb", dark=True),
-    "Light": dict(bg="#e9e9ed", surface="#ffffff", hover="#dcdce2", line="#d2d2d8", text="#1b1b1f", muted="#6a6a73", icon="#55555e", dark=False),
+A theme is six colour tokens (accent, accent2, bg, surface, text, muted). Everything else (borders, hover,
+icon colour) is derived from them, so a custom theme only has to define six colours.
+resolve(settings) -> tokens, build(tokens) -> (QSS, tokens)
+"""
+from string import Template
+
+from PySide6.QtGui import QColor
+
+TOKENS = ("accent", "accent2", "bg", "surface", "text", "muted")
+DEFAULT, LIGHT = "Vexora Aurora", "Light"
+BUILTIN = {
+    "Vexora Aurora": dict(accent="#168BFF", accent2="#8B5CF6", bg="#15151B", surface="#202027", text="#F5F5F7", muted="#A1A1AA"),
+    "Ocean":         dict(accent="#1FB6FF", accent2="#14B8A6", bg="#0F1A24", surface="#172635", text="#EAF4FB", muted="#8FA6B8"),
+    "Crimson":       dict(accent="#E5484D", accent2="#FB7185", bg="#1A1214", surface="#261A1D", text="#F8ECED", muted="#B09A9D"),
+    "Emerald":       dict(accent="#30A46C", accent2="#2DD4BF", bg="#101A16", surface="#18261F", text="#EAF6F0", muted="#8FA89B"),
+    "Monochrome":    dict(accent="#E5E5E5", accent2="#A3A3A3", bg="#121212", surface="#1D1D1D", text="#F5F5F5", muted="#9A9A9A"),
+    "Light":         dict(accent="#168BFF", accent2="#8B5CF6", bg="#EEF0F4", surface="#FFFFFF", text="#1B1B1F", muted="#6A6A73"),
 }
-ACCENTS = {"Violet": "#8a6df5", "Blue": "#4c8dff", "Green": "#34b27b", "Orange": "#e8833a", "Rose": "#e0568f"}
+LEGACY = {"Dark": DEFAULT, "Black": "Monochrome"}          # theme names used before 2.1
+OLD_DEFAULT_ACCENT = "#8a6df5"
+LABELS = dict(accent="Primary accent", accent2="Secondary accent", bg="Background", surface="Surface",
+              text="Text", muted="Secondary text")
+
+
+def valid(c):
+    return isinstance(c, str) and c.startswith("#") and len(c) in (4, 7) and QColor.isValidColorName(c)
+
+
+def clean_tokens(d):
+    """Keep only valid colour tokens from untrusted data (imported backups, settings file)."""
+    return {k: QColor(d[k]).name().upper() for k in TOKENS if isinstance(d, dict) and valid(d.get(k))} if isinstance(d, dict) else {}
+
+
+def clean_customs(d):
+    out = {}
+    if isinstance(d, dict):
+        for name, t in d.items():
+            t = clean_tokens(t)
+            if isinstance(name, str) and name.strip() and name not in BUILTIN and len(t) == len(TOKENS):
+                out[name.strip()[:40]] = t
+    return out
+
+
+def mix(a, b, t):
+    a, b = QColor(a), QColor(b)
+    return QColor(*(round(x + (y - x) * t) for x, y in zip(a.getRgb()[:3], b.getRgb()[:3]))).name()
+
+
+def is_dark(bg):
+    return QColor(bg).lightness() < 128
+
+
+def names(settings):
+    return list(BUILTIN) + sorted(settings.get("custom_themes", {}))
+
+
+def base_tokens(settings, name=None):
+    name = name or settings.get("theme", DEFAULT)
+    t = settings.get("custom_themes", {}).get(name) or BUILTIN.get(name) or BUILTIN[DEFAULT]
+    return dict(BUILTIN[DEFAULT], **clean_tokens(t))
+
+
+def resolve(settings, system_dark=True):
+    """Settings -> final colour tokens (+ derived ones). appearance: dark | light | system."""
+    t = base_tokens(settings)
+    mode = settings.get("appearance", "dark")
+    want_dark = system_dark if mode == "system" else mode != "light"
+    if is_dark(t["bg"]) != want_dark:                     # theme and requested mode disagree: use that mode's default
+        t = dict(BUILTIN[DEFAULT] if want_dark else BUILTIN[LIGHT])
+    t.update(clean_tokens(settings.get("overrides", {})))
+    k = min(1.0, max(0.4, float(settings.get("intensity", 1.0))))
+    for a in ("accent", "accent2"):                       # accent intensity: blend toward the background
+        t[a] = mix(t["bg"], t[a], k)
+    t["dark"] = is_dark(t["bg"])
+    t["line"] = mix(t["surface"], t["text"], .13)
+    t["hover"] = mix(t["surface"], t["text"], .09)
+    t["icon"] = mix(t["muted"], t["text"], .35)
+    t["on_accent"] = "#FFFFFF" if QColor(t["accent"]).lightness() < 170 else "#111111"
+    return t
+
 
 QSS = Template("""
 QWidget { background:$bg; color:$text; font:13px "Segoe UI"; }
@@ -22,16 +94,17 @@ QToolButton:hover { background:$hover; }
 QToolButton::menu-indicator { image:none; }
 QToolButton#bm { padding:4px 8px; color:$muted; }
 QToolButton#bm:hover { color:$text; }
-QLineEdit { background:$bg; border:1px solid transparent; border-radius:10px; padding:8px 14px; selection-background-color:$accent; selection-color:#fff; }
+QLineEdit { background:$bg; border:1px solid transparent; border-radius:10px; padding:8px 14px; selection-background-color:$accent; selection-color:$on_accent; }
 QLineEdit:focus { border-color:$accent; }
 #sidebar QWidget { background:transparent; }
 QLineEdit#sbsearch { background:$bg; margin:0 10px; }
-QTabBar::tab { background:transparent; color:$muted; padding:9px 12px; min-width:100px; max-width:220px; border-top-left-radius:10px; border-top-right-radius:10px; margin-right:2px; }
-QTabBar::tab:selected { background:$surface; color:$text; }
+QTabBar::tab { background:transparent; color:$muted; padding:9px 12px; min-width:100px; max-width:220px; border-top:2px solid transparent; border-top-left-radius:10px; border-top-right-radius:10px; margin-right:2px; }
+QTabBar::tab:selected { background:$surface; color:$text; border-top-color:$accent2; }
 QTabBar::tab:hover:!selected { background:$surface; }
 QTabBar::close-button { image:url("$close"); subcontrol-position:right; border-radius:4px; margin:0 2px; }
 QTabBar::close-button:hover { background:$hover; }
-QPushButton { background:$accent; color:#fff; border:0; border-radius:6px; padding:6px 14px; }
+QPushButton { background:$accent; color:$on_accent; border:0; border-radius:6px; padding:6px 14px; }
+QPushButton:disabled { background:$hover; color:$muted; }
 QPushButton#ghost { background:transparent; color:$muted; }
 QPushButton#ghost:hover { color:$text; }
 QPushButton#flat { background:$hover; color:$text; }
@@ -55,6 +128,9 @@ QCheckBox::indicator:checked { background:$accent; border-color:$accent; image:u
 QComboBox { background:$bg; border:1px solid $line; border-radius:6px; padding:5px 10px; min-width:120px; }
 QComboBox QAbstractItemView { background:$surface; border:1px solid $line; selection-background-color:$hover; outline:0; }
 QComboBox::drop-down { border:0; width:20px; }
+QSlider::groove:horizontal { height:4px; background:$line; border-radius:2px; }
+QSlider::sub-page:horizontal { background:$accent; border-radius:2px; }
+QSlider::handle:horizontal { width:14px; height:14px; margin:-5px 0; border-radius:7px; background:$text; }
 QScrollBar:vertical { width:10px; background:transparent; }
 QScrollBar::handle:vertical { background:$hover; border-radius:5px; min-height:24px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
@@ -69,10 +145,10 @@ def _svg(path, color, w=1.6):
             f'stroke="{color}" stroke-width="{w}" stroke-linecap="round" stroke-linejoin="round"><path d="{path}"/></svg>')
 
 
-def build(theme, accent):
-    t = dict(THEMES.get(theme, THEMES["Dark"]), accent=accent)
+def build(t):
+    from store import cache_dir                          # imported here: store imports this module
     d = cache_dir()
     (d / "close.svg").write_text(_svg("M4.5 4.5l7 7M11.5 4.5l-7 7", t["muted"]))
-    (d / "check.svg").write_text(_svg("M3.5 8.5l3 3 6-7", "#ffffff", 2))
-    t["close"], t["check"] = (d / "close.svg").as_posix(), (d / "check.svg").as_posix()
+    (d / "check.svg").write_text(_svg("M3.5 8.5l3 3 6-7", t["on_accent"], 2))
+    t = dict(t, close=(d / "close.svg").as_posix(), check=(d / "check.svg").as_posix())
     return QSS.substitute(t), t

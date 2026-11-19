@@ -1,9 +1,11 @@
 """All user data: settings, bookmarks, history. One JSON file in %APPDATA%\\Vexora."""
-import json, re, time
+import copy, json, re, time
 from pathlib import Path
 from urllib.parse import urlsplit
 from PySide6.QtCore import QStandardPaths, QTimer
 from PySide6.QtGui import QIcon
+
+import theme
 
 ENGINES = {
     "Google": "https://www.google.com/search?q=%s",
@@ -12,7 +14,8 @@ ENGINES = {
     "Brave": "https://search.brave.com/search?q=%s",
 }
 DEFAULTS = {
-    "engine": "Google", "theme": "Dark", "accent": "#8a6df5",
+    "engine": "Google", "theme": theme.DEFAULT, "appearance": "dark", "overrides": {}, "intensity": 1.0,
+    "custom_themes": {}, "reduce_motion": False,
     "bookmarks_bar": True, "restore_tabs": True, "ask_save": False,
     "shield": True, "force_dark": False, "blocked_total": 0,
 }
@@ -49,7 +52,7 @@ def _entries(items):
 class Store:
     def __init__(self):
         self.path = data_dir() / "data.json"
-        self.settings, self.bookmarks, self.history = dict(DEFAULTS), [], []
+        self.settings, self.bookmarks, self.history = copy.deepcopy(DEFAULTS), [], []
         try:
             d = json.loads(self.path.read_text("utf-8"))
             self.import_data(d, save=False)
@@ -139,9 +142,29 @@ class Store:
     def import_data(self, d, save=True):
         if not isinstance(d, dict):
             raise ValueError("not a Vexora backup")
-        for k, v in (d.get("settings") or {}).items():
-            if k in DEFAULTS and type(v) is type(DEFAULTS[k]):
+        st = dict(d.get("settings") or {}) if isinstance(d.get("settings"), dict) else {}
+        if st.get("theme") in theme.LEGACY:                      # settings written before 2.1
+            st["theme"] = theme.LEGACY[st["theme"]]
+        old = st.pop("accent", None)
+        if theme.valid(old) and old.lower() != theme.OLD_DEFAULT_ACCENT and "overrides" not in st:
+            st["overrides"] = {"accent": old}
+        for k, v in st.items():
+            if k not in DEFAULTS:
+                continue
+            if k == "intensity" and isinstance(v, (int, float)) and not isinstance(v, bool):
+                self.settings[k] = min(1.0, max(0.4, float(v)))
+            elif k == "overrides" and isinstance(v, dict):
+                self.settings[k] = theme.clean_tokens(v)
+            elif k == "custom_themes" and isinstance(v, dict):
+                self.settings[k] = theme.clean_customs(v)
+            elif k == "appearance" and v in ("dark", "light", "system"):
                 self.settings[k] = v
+            elif k == "theme" and isinstance(v, str):
+                self.settings[k] = v
+            elif type(v) is type(DEFAULTS[k]) and k not in ("overrides", "custom_themes", "intensity", "appearance", "theme"):
+                self.settings[k] = v
+        if self.settings["theme"] not in theme.names(self.settings):
+            self.settings["theme"] = theme.DEFAULT
         if isinstance(d.get("bookmarks"), list):
             self.bookmarks = _entries(d["bookmarks"])
         if isinstance(d.get("history"), list):

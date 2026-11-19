@@ -1,12 +1,16 @@
 """Settings dialog. Every control applies immediately."""
 import json
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
-                               QListWidget, QMessageBox, QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+import copy
 
-from store import ENGINES
-from theme import ACCENTS, THEMES
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
+                               QColorDialog, QInputDialog, QListWidget, QMessageBox, QPushButton, QSlider, QStackedWidget,
+                               QVBoxLayout, QWidget)
+
+from store import DEFAULTS, ENGINES
+import theme
 from version import VERSION
 
 
@@ -70,41 +74,134 @@ class Settings(QDialog):
         v.addStretch()
         return w
 
+    # ---- appearance: everything previews live; Apply saves, closing the dialog without Apply reverts ----
+    KEYS = ("theme", "appearance", "overrides", "intensity")
+
     def appearance(self):
+        st = self.store.settings
+        if not hasattr(self, "draft"):
+            self.draft = {k: copy.deepcopy(st[k]) for k in self.KEYS}
+            self.finished.connect(self.revert_preview)
+        d = self.draft
         w, v = self.page("Appearance")
+        v.addWidget(QLabel("Mode"))
+        row = QHBoxLayout(); group = QButtonGroup(w)
+        for label, val in (("Dark", "dark"), ("Light", "light"), ("Follow system", "system")):
+            b = QPushButton(label); b.setObjectName("opt"); b.setCheckable(True); b.setChecked(d["appearance"] == val)
+            b.clicked.connect(lambda _c, x=val: self.change(appearance=x)); group.addButton(b); row.addWidget(b)
+        row.addStretch(); v.addLayout(row)
+
         v.addWidget(QLabel("Theme"))
-        row = QHBoxLayout()
-        group = QButtonGroup(self)
-        for name in THEMES:
-            b = QPushButton(name)
-            b.setObjectName("opt")
-            b.setCheckable(True)
-            b.setChecked(self.store.settings["theme"] == name)
-            b.clicked.connect(lambda _c, n=name: self.br.apply_setting("theme", n))
-            group.addButton(b)
-            row.addWidget(b)
-        row.addStretch()
-        v.addLayout(row)
-        v.addWidget(QLabel("Accent colour"))
-        row2, self.swatches = QHBoxLayout(), []
-        for name, col in ACCENTS.items():
-            b = QPushButton()
-            b.setFixedSize(26, 26)
-            b.setToolTip(name)
-            b.clicked.connect(lambda _c, c=col: (self.br.apply_setting("accent", c), self.paint()))
-            self.swatches.append((b, col))
-            row2.addWidget(b)
-        row2.addStretch()
-        v.addLayout(row2)
-        self.paint()
+        grid = QHBoxLayout(); group = QButtonGroup(w)
+        for name in theme.names(st):
+            b = QPushButton(name); b.setObjectName("opt"); b.setCheckable(True); b.setChecked(d["theme"] == name)
+            b.clicked.connect(lambda _c, n=name: self.change(theme=n, overrides={})); group.addButton(b); grid.addWidget(b)
+        grid.addStretch(); v.addLayout(grid)
+
+        v.addWidget(QLabel("Colours"))
+        final = theme.resolve(dict(st, **d), self.br.system_dark())
+        for key, label in theme.LABELS.items():
+            r = QHBoxLayout()
+            sw = QPushButton(); sw.setFixedSize(26, 26); sw.setToolTip("Choose a colour")
+            sw.setStyleSheet(f"background:{final[key]}; border:1px solid {final['line']}; border-radius:13px; padding:0;")
+            sw.clicked.connect(lambda _c, k=key, cur=final[key]: self.pick(k, cur))
+            lab = QLabel(f"{label}   {final[key].upper()}"); lab.setObjectName("muted")
+            r.addWidget(sw); r.addWidget(lab); r.addStretch(); v.addLayout(r)
+        r = QHBoxLayout(); r.addWidget(QLabel("Accent intensity"))
+        sl = QSlider(Qt.Orientation.Horizontal); sl.setRange(40, 100); sl.setValue(round(d["intensity"] * 100)); sl.setFixedWidth(180)
+        sl.valueChanged.connect(lambda x: self.change(intensity=x / 100, rebuild=False))
+        r.addWidget(sl); r.addStretch(); v.addLayout(r)
+
+        r = QHBoxLayout()
+        self.btn_apply = QPushButton("Apply"); self.btn_apply.clicked.connect(self.apply_draft)
+        self.btn_revert = QPushButton("Revert"); self.btn_revert.setObjectName("flat"); self.btn_revert.clicked.connect(self.revert_draft)
+        for b in (self.btn_apply, self.btn_revert): r.addWidget(b)
+        r.addStretch(); v.addLayout(r)
+        self.mark_dirty()
+
+        v.addWidget(QLabel("Custom themes"))
+        custom = d["theme"] in st["custom_themes"]
+        r = QHBoxLayout()
+        for text, fn, on in (("Save current as new…", self.save_theme, True), ("Rename…", self.rename_theme, custom),
+                             ("Delete", self.delete_theme, custom), ("Reset to default", self.reset_theme, True)):
+            b = QPushButton(text); b.setObjectName("danger" if text in ("Delete", "Reset to default") else "flat")
+            b.setEnabled(on); b.clicked.connect(fn); r.addWidget(b)
+        r.addStretch(); v.addLayout(r)
+        self.check(v, "reduce_motion", "Reduce motion", "Turns off Vexora's animations. Also follows the Windows animation setting.")
         v.addStretch()
         return w
 
-    def paint(self):
-        cur = self.store.settings["accent"]
-        for b, col in self.swatches:
-            ring = "#e6e6ea" if col == cur else "transparent"
-            b.setStyleSheet(f"background:{col}; border:2px solid {ring}; border-radius:13px; padding:0;")
+    def mark_dirty(self):
+        dirty = any(self.draft[k] != self.store.settings[k] for k in self.KEYS)
+        self.btn_apply.setEnabled(dirty); self.btn_revert.setEnabled(dirty)
+
+    def preview(self):
+        self.br.apply_theme(dict(self.store.settings, **self.draft))
+
+    def change(self, rebuild=True, **kw):
+        self.draft.update(kw); self.preview()
+        if rebuild: self.rebuild()
+        else: self.mark_dirty()
+
+    def rebuild(self):
+        i = self.stack.currentIndex(); old = self.stack.widget(1)
+        self.stack.removeWidget(old); old.deleteLater()
+        self.stack.insertWidget(1, self.appearance()); self.stack.setCurrentIndex(i)
+
+    def pick(self, key, cur):
+        c = QColorDialog.getColor(QColor(cur), self, theme.LABELS[key])
+        if c.isValid():
+            self.change(overrides=dict(self.draft["overrides"], **{key: c.name().upper()}))
+
+    def apply_draft(self):
+        for k in self.KEYS: self.br.apply_setting(k, copy.deepcopy(self.draft[k]))
+        self.rebuild()
+
+    def revert_draft(self):
+        self.draft = {k: copy.deepcopy(self.store.settings[k]) for k in self.KEYS}; self.preview(); self.rebuild()
+
+    def revert_preview(self, _r=None):
+        if any(self.draft[k] != self.store.settings[k] for k in self.KEYS): self.br.apply_theme()
+
+    def current_tokens(self):
+        t = theme.resolve(dict(self.store.settings, **self.draft), self.br.system_dark())
+        return {k: QColor(t[k]).name().upper() for k in theme.TOKENS}
+
+    def ask_name(self, title, default=""):
+        while True:
+            name, ok = QInputDialog.getText(self, title, "Theme name", text=default)
+            name = name.strip()[:40]
+            if not ok or not name: return None
+            if name in theme.BUILTIN or (name in self.store.settings["custom_themes"] and name != default):
+                QMessageBox.warning(self, title, "A theme with that name already exists."); default = name; continue
+            return name
+
+    def save_theme(self):
+        name = self.ask_name("Save theme")
+        if not name: return
+        customs = dict(self.store.settings["custom_themes"]); customs[name] = self.current_tokens()
+        self.br.apply_setting("custom_themes", customs)
+        self.draft.update(theme=name, overrides={}); self.apply_draft()
+
+    def rename_theme(self):
+        old = self.draft["theme"]; name = self.ask_name("Rename theme", old)
+        if not name or name == old: return
+        customs = {(name if k == old else k): v for k, v in self.store.settings["custom_themes"].items()}
+        self.br.apply_setting("custom_themes", customs)
+        if self.store.settings["theme"] == old: self.br.apply_setting("theme", name)
+        self.draft["theme"] = name; self.rebuild()
+
+    def delete_theme(self):
+        old = self.draft["theme"]
+        if QMessageBox.question(self, "Delete theme", f'Delete the theme "{old}"?') != QMessageBox.StandardButton.Yes: return
+        self.br.apply_setting("custom_themes", {k: v for k, v in self.store.settings["custom_themes"].items() if k != old})
+        if self.store.settings["theme"] == old: self.br.apply_setting("theme", theme.DEFAULT)
+        self.draft.update(theme=theme.DEFAULT, overrides={}); self.preview(); self.rebuild()
+
+    def reset_theme(self):
+        if QMessageBox.question(self, "Reset appearance", "Reset theme, colours and intensity to the Vexora Aurora defaults?\n"
+                                "Your saved custom themes are kept.") != QMessageBox.StandardButton.Yes: return
+        self.draft = {k: copy.deepcopy(DEFAULTS[k]) for k in self.KEYS}; self.apply_draft()
 
     def privacy(self):
         w, v = self.page("Privacy")

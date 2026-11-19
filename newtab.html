@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <title>New tab</title>
 <style>
-  :root { --bg:#141416; --surface:#1e1e22; --line:#2b2b31; --text:#e6e6ea; --muted:#8d8d96; --accent:#8a6df5; }
+  :root { --bg:#15151B; --surface:#202027; --line:#3c3c42; --text:#F5F5F7; --muted:#A1A1AA; --accent:#168BFF; --accent2:#8B5CF6; }
   * { box-sizing: border-box; margin: 0; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
     background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; padding: 4vh 0 6vh; }
@@ -10,7 +10,7 @@
   .word { margin: 6px 0 22px; font-size: 22px; font-weight: 600; letter-spacing: .32em; padding-left: .32em; }
   #time { display: flex; align-items: baseline; gap: 2px; font-size: 68px; font-weight: 300; letter-spacing: -.02em; line-height: 1;
     font-variant-numeric: tabular-nums; }
-  #time .s { color: var(--accent); font-size: 38px; margin-left: 4px; }
+  #time .s { color: var(--accent2); font-size: 38px; margin-left: 4px; }
   #time .p { color: var(--muted); font-size: 18px; margin-left: 8px; letter-spacing: 0; }
   #date { color: var(--muted); margin: 10px 0 30px; }
   input { width: min(580px, 88vw); height: 48px; padding: 0 20px; border: 1px solid var(--line); border-radius: 12px;
@@ -53,7 +53,7 @@
 <script src="resolve.js"></script>
 <script>
   const P = new URLSearchParams(location.search);
-  for (const k of ['bg', 'surface', 'line', 'text', 'muted', 'accent'])
+  for (const k of ['bg', 'surface', 'line', 'text', 'muted', 'accent', 'accent2'])
     if (P.get(k)) document.documentElement.style.setProperty('--' + k, P.get(k));
 
   const fmt = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
