@@ -5,7 +5,7 @@ Engine: Qt WebEngine (Chromium) through PySide6, Qt Widgets shell. No Node.
 Working: tabs, private tabs (off-the-record profile), back/forward/reload, address bar with URL/search resolution,
 bookmarks bar + sidebar (flat list), history (5000 entries), downloads list, find in page, Ctrl+K palette
 (actions/tabs/bookmarks/history), zoom, devtools, fullscreen, session restore, tracker blocking (79 domains, real counter),
-force-dark pages, JSON backup/restore, auto-updater, installer, release workflow...
+force-dark pages, JSON backup/restore, auto-updater, installer, release workflow.
 
 ## Known problems found
 1. Every web permission (camera, mic, location, notifications, clipboard) is silently denied; there is no way to grant one.
@@ -35,3 +35,18 @@ force-dark pages, JSON backup/restore, auto-updater, installer, release workflow
 
 ## Not claimed as done
 Everything not listed as done above. Nothing in the UI advertises a feature that is not implemented.
+
+
+## Progress log
+**Phase 1, step 2 (UI like the design mockup)**
+- Frameless window: tabs in the title bar, min/max/close, drag to move, edge grips to resize.
+- Toolbar: back/forward/reload/home, pill address bar with security mark (HTTPS lock / HTTP warning) and clear button, bookmark, downloads, menu.
+- Left rail: Home, Bookmarks, History, Downloads, Settings. (Extensions, Toolbox, AI, workspaces and split-screen are NOT shown: they don't exist yet.)
+- New tab page is an internal `vexora://app/newtab` page. Widgets: Vexora card, weather (Open-Meteo, only after a city is set), clock/date/greeting,
+  search with engine picker, shortcuts (add/edit/remove/drag to reorder), recently visited, bookmark folders, quick notes, wallpaper, customize panel.
+- Bookmark folders (sidebar: right-click > Move to folder).
+- Security: page-to-app data goes through `vexora://app/api/*`, which only answers requests whose initiator is `vexora://app`. No web channel exists.
+- Fixed: restored active tab was wrong when private tabs were open.
+
+Known limits: shortcut icons are letter tiles until you visit the site (then the real favicon is used). Weather needs internet and was
+tested only with a stubbed response in the sandbox. The frameless window was tested headless only, not yet on Windows.

@@ -13,12 +13,18 @@ ENGINES = {
     "Bing": "https://www.bing.com/search?q=%s",
     "Brave": "https://search.brave.com/search?q=%s",
 }
+WIDGETS = ("card", "weather", "clock", "greeting", "search", "shortcuts", "recents", "bookmarks", "notes")
 DEFAULTS = {
     "engine": "Google", "theme": theme.DEFAULT, "appearance": "dark", "overrides": {}, "intensity": 1.0,
     "custom_themes": {}, "reduce_motion": False,
     "bookmarks_bar": True, "restore_tabs": True, "ask_save": False,
     "shield": True, "force_dark": False, "blocked_total": 0,
+    "name": "", "city": "", "units": "C", "wallpaper": "",
+    "widgets": {w: True for w in WIDGETS},
 }
+DEFAULT_SHORTCUTS = [("YouTube", "https://www.youtube.com"), ("Discord", "https://discord.com/app"), ("GitHub", "https://github.com"),
+                     ("Reddit", "https://www.reddit.com"), ("Gmail", "https://mail.google.com"), ("Maps", "https://maps.google.com")]
+SPECIAL = ("overrides", "custom_themes", "intensity", "appearance", "theme", "widgets", "units", "wallpaper", "name", "city")
 
 
 def data_dir():
@@ -45,14 +51,25 @@ def host_key(url):
 
 
 def _entries(items):
-    return [{"url": i["url"], "title": str(i.get("title") or i["url"]), **({"t": float(i["t"])} if "t" in i else {})}
+    return [{"url": i["url"], "title": str(i.get("title") or i["url"]), **({"t": float(i["t"])} if "t" in i else {}),
+             **({"folder": i["folder"].strip()[:40]} if isinstance(i.get("folder"), str) and i["folder"].strip() else {})}
             for i in items if isinstance(i, dict) and isinstance(i.get("url"), str)]
+
+
+def _shortcuts(items):
+    out = []
+    for i in items if isinstance(items, list) else []:
+        if isinstance(i, dict) and isinstance(i.get("url"), str) and i["url"].startswith(("http://", "https://")):
+            out.append({"title": str(i.get("title") or host_key(i["url"]))[:40], "url": i["url"][:2000]})
+    return out[:60]
 
 
 class Store:
     def __init__(self):
         self.path = data_dir() / "data.json"
         self.settings, self.bookmarks, self.history = copy.deepcopy(DEFAULTS), [], []
+        self.shortcuts = [{"title": t, "url": u} for t, u in DEFAULT_SHORTCUTS]
+        self.notes = ""
         try:
             d = json.loads(self.path.read_text("utf-8"))
             self.import_data(d, save=False)
@@ -117,6 +134,31 @@ class Store:
         self.bookmarks = [b for b in self.bookmarks if b["url"] != url]
         self.flush()
 
+    def set_folder(self, url, folder):
+        for b in self.bookmarks:
+            if b["url"] == url:
+                folder = (folder or "").strip()[:40]
+                b.pop("folder", None)
+                if folder:
+                    b["folder"] = folder
+        self.flush()
+
+    def folders(self):
+        """[(folder name, [bookmarks])]; bookmarks without a folder are listed last under ''."""
+        out = {}
+        for b in self.bookmarks:
+            out.setdefault(b.get("folder", ""), []).append(b)
+        named = sorted((k for k in out if k), key=str.lower)
+        return [(k, out[k]) for k in named] + ([("", out[""])] if "" in out else [])
+
+    def set_shortcuts(self, items):
+        self.shortcuts = _shortcuts(items)
+        self.flush()
+
+    def set_notes(self, text):
+        self.notes = str(text)[:20000]
+        self.touch()
+
     # history
     def add_history(self, url, title):
         now = time.time()
@@ -137,7 +179,8 @@ class Store:
 
     # backup
     def export_data(self):
-        return {"vexora_backup": 1, "settings": self.settings, "bookmarks": self.bookmarks, "history": self.history}
+        return {"vexora_backup": 1, "settings": self.settings, "bookmarks": self.bookmarks, "history": self.history,
+                "shortcuts": self.shortcuts, "notes": self.notes}
 
     def import_data(self, d, save=True):
         if not isinstance(d, dict):
@@ -159,14 +202,24 @@ class Store:
                 self.settings[k] = theme.clean_customs(v)
             elif k == "appearance" and v in ("dark", "light", "system"):
                 self.settings[k] = v
-            elif k == "theme" and isinstance(v, str):
+            elif k == "units" and v in ("C", "F"):
                 self.settings[k] = v
-            elif type(v) is type(DEFAULTS[k]) and k not in ("overrides", "custom_themes", "intensity", "appearance", "theme"):
+            elif k == "widgets" and isinstance(v, dict):
+                self.settings[k] = {w: bool(v.get(w, True)) for w in WIDGETS}
+            elif k == "wallpaper" and isinstance(v, str) and (v == "" or re.fullmatch(r"[A-Za-z0-9_-]{1,40}\.(jpg|png)", v)):
+                self.settings[k] = v
+            elif k in ("name", "city", "theme") and isinstance(v, str):
+                self.settings[k] = v.strip()[:80]
+            elif k not in SPECIAL and type(v) is type(DEFAULTS[k]):
                 self.settings[k] = v
         if self.settings["theme"] not in theme.names(self.settings):
             self.settings["theme"] = theme.DEFAULT
         if isinstance(d.get("bookmarks"), list):
             self.bookmarks = _entries(d["bookmarks"])
+        if isinstance(d.get("shortcuts"), list):
+            self.shortcuts = _shortcuts(d["shortcuts"])
+        if isinstance(d.get("notes"), str):
+            self.notes = d["notes"][:20000]
         if isinstance(d.get("history"), list):
             self.history = [h for h in _entries(d["history"]) if "t" in h][-5000:]
         if save:

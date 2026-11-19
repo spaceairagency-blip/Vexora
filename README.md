@@ -3,7 +3,13 @@
 Real Chromium engine (Qt WebEngine) driven from Python. No Node.js.
 
 ## Features
-Bookmarks, history, downloads, command palette (Ctrl+K), find in page, private tabs, themes, backup, small updates.
+Custom title bar with tabs, left icon rail, themes (6 built-in + custom), new tab page (clock, greeting, search, shortcuts,
+recently visited, bookmark folders, quick notes, weather, wallpaper), bookmarks, history, downloads, command palette (Ctrl+K),
+find in page, private tabs, tracker blocking, backup, small updates.
+
+## Tests (headless, no display needed)
+    python tests/test_phase1.py     # theme engine and Appearance settings
+    python tests/test_ui.py         # new tab page, internal API security, shell
 
 ## Run from source
     pip install -r requirements.txt

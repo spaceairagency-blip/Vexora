@@ -98,6 +98,15 @@ QLineEdit { background:$bg; border:1px solid transparent; border-radius:10px; pa
 QLineEdit:focus { border-color:$accent; }
 #sidebar QWidget { background:transparent; }
 QLineEdit#sbsearch { background:$bg; margin:0 10px; }
+QLineEdit#url { border-radius:18px; padding:7px 14px 7px 8px; background:$bg; border:1px solid $line; }
+QLineEdit#url:focus { border-color:$accent; }
+#titlebar { background:$bg; }
+QToolButton#winbtn, QToolButton#winclose { border-radius:0; padding:0; }
+QToolButton#winclose:hover { background:#e5484d; }
+#rail { background:$bg; border-right:1px solid $line; }
+QToolButton#railbtn { padding:10px; border-radius:12px; }
+QToolButton#railbtn:hover { background:$hover; }
+QToolButton#railbtn:checked { background:$accent; }
 QTabBar::tab { background:transparent; color:$muted; padding:9px 12px; min-width:100px; max-width:220px; border-top:2px solid transparent; border-top-left-radius:10px; border-top-right-radius:10px; margin-right:2px; }
 QTabBar::tab:selected { background:$surface; color:$text; border-top-color:$accent2; }
 QTabBar::tab:hover:!selected { background:$surface; }

@@ -1,9 +1,9 @@
-import ctypes, json, re, sys
+import ctypes, json, re, sys, time
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from PySide6.QtCore import QSize, Qt, QStandardPaths, QTimer, QUrl
-from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
                                      QWebEngineUrlRequestInterceptor)
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, Q
                                QMessageBox, QPushButton, QStackedWidget, QTabBar, QToolButton, QVBoxLayout, QWidget)
 
 from palette import Palette
+from scheme import Handler, NEWTAB, SCHEME, register as register_scheme, wallpaper_dir
 from settings import Settings
 from sidebar import Sidebar
 from store import ENGINES, Store, host_key, icon_dir
@@ -21,17 +22,21 @@ from updater import Updater
 from version import VERSION
 
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
-NEWTAB_BASE = QUrl.fromLocalFile(str(BASE / "newtab.html")).toString()
 ICONS = {
     "back": "M10 3 5 8l5 5", "forward": "M6 3l5 5-5 5", "plus": "M8 3v10M3 8h10",
     "reload": "M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3", "stop": "M4 4l8 8M12 4l-8 8",
     "star": "M8 1.8l1.9 4 4.3.5-3.2 3 .9 4.3L8 11.4 4.1 13.6 5 9.3 1.8 6.3l4.3-.5z",
     "sidebar": "M2.5 3.5h11v9h-11zM6.5 3.5v9", "menu": "M2.5 4.5h11M2.5 8h11M2.5 11.5h11",
     "up": "M4 10l4-4 4 4", "down": "M4 6l4 4 4-4", "close": "M4.5 4.5l7 7M11.5 4.5l-7 7",
+    "home": "M2.5 7.5 8 3l5.5 4.5M4 6.8V13h3V9.5h2V13h3V6.8", "bookmark": "M4.5 2.5h7v11L8 10.5 4.5 13.5z",
+    "history": "M8 4.5V8l2.5 1.5M2.5 8a5.5 5.5 0 1 0 1.8-4.1M2.5 2.8v2.7h2.7", "download": "M8 2.5v7.5M5 7l3 3 3-3M3 13h10",
+    "sliders": "M3 5h10M3 11h10M6 3v4M10 9v4", "search": "M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM11 11l3 3",
+    "lock": "M4.5 7.5h7v5.5h-7zM6 7.5V5.5a2 2 0 0 1 4 0v2", "warn": "M8 2.5l6 10.5H2zM8 7v3M8 11.5v.5",
+    "min": "M3.5 8.5h9", "max": "M3.5 3.5h9v9h-9z", "restore": "M5.5 5.5h7v7h-7zM3.5 10.5v-7h7",
 }
 
 
-def icon(name, color, fill=None):
+def pix(name, color, fill=None):
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="{fill or "none"}" stroke="{color}" '
            f'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{ICONS[name]}"/></svg>')
     pm = QPixmap(32, 32)
@@ -40,7 +45,15 @@ def icon(name, color, fill=None):
     QSvgRenderer(svg.encode()).render(p)
     p.end()
     pm.setDevicePixelRatio(2)
-    return QIcon(pm)
+    return pm
+
+
+def icon(name, color, fill=None, on=None):
+    """on = colour to use when the button is checked."""
+    ic = QIcon()
+    ic.addPixmap(pix(name, color, fill), QIcon.Mode.Normal, QIcon.State.Off)
+    ic.addPixmap(pix(name, on or color, fill), QIcon.Mode.Normal, QIcon.State.On)
+    return ic
 
 
 def resolve(s, engine):
@@ -90,7 +103,43 @@ class Tab(QWebEngineView):
 
     def shown(self):
         u = self.url().toString()
-        return "" if u.startswith(NEWTAB_BASE) else u
+        return "" if u.startswith(NEWTAB) else u
+
+
+class TitleBar(QWidget):
+    """Tabs live here; empty space drags the window, double-click maximises."""
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.setObjectName("titlebar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self.win.windowHandle():
+            self.win.windowHandle().startSystemMove()
+
+    def mouseDoubleClickEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.win.toggle_max()
+
+
+class Grip(QWidget):
+    """Invisible strip on a window edge: dragging it resizes the frameless window."""
+    CURSORS = {Qt.Edge.LeftEdge: Qt.CursorShape.SizeHorCursor, Qt.Edge.RightEdge: Qt.CursorShape.SizeHorCursor,
+               Qt.Edge.TopEdge: Qt.CursorShape.SizeVerCursor, Qt.Edge.BottomEdge: Qt.CursorShape.SizeVerCursor}
+
+    def __init__(self, win, edges):
+        super().__init__(win)
+        self.win, self.edges = win, edges
+        self.setStyleSheet("background:transparent")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        diag = (Qt.CursorShape.SizeFDiagCursor if edges in (Qt.Edge.LeftEdge | Qt.Edge.TopEdge, Qt.Edge.RightEdge | Qt.Edge.BottomEdge)
+                else Qt.CursorShape.SizeBDiagCursor)
+        self.setCursor(self.CURSORS.get(edges, diag))
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self.win.windowHandle():
+            self.win.windowHandle().startSystemResize(self.edges)
 
 
 class Browser(QMainWindow):
@@ -99,6 +148,9 @@ class Browser(QMainWindow):
         self.profile, self.private_profile, self.blocker, self.updater, self.store = profile, private_profile, blocker, updater, store
         self.closed, self.dev, self._was_max, self._last, self.t = [], None, False, 0, {}
         self.setWindowTitle("Vexora"); self.resize(1280, 800)
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+        self.handlers = [Handler(self, False), Handler(self, True)]       # vexora:// pages, one per profile
+        for p, h in zip((profile, private_profile), self.handlers): p.installUrlSchemeHandler(SCHEME, h)
         self.setWindowIcon(QIcon(str(BASE / "assets" / "icon.png")))
 
         # tab strip
@@ -107,21 +159,29 @@ class Browser(QMainWindow):
         self.stack = QStackedWidget()
         self.btn_plus = QToolButton(); self.btn_plus.setToolTip("New tab (Ctrl+T)")
         self.btn_plus.clicked.connect(lambda: self.new_tab(self.newtab_url()))
-        self.top = QWidget(); tl = QHBoxLayout(self.top); tl.setContentsMargins(8, 6, 8, 0); tl.setSpacing(2)
+        self.top = TitleBar(self); tl = QHBoxLayout(self.top); tl.setContentsMargins(8, 6, 0, 0); tl.setSpacing(2)
         tl.addWidget(self.tabbar); tl.addWidget(self.btn_plus); tl.addStretch()
+        self.btn_min, self.btn_max, self.btn_x = QToolButton(), QToolButton(), QToolButton()
+        for b, name, fn in ((self.btn_min, "winbtn", self.showMinimized), (self.btn_max, "winbtn", self.toggle_max), (self.btn_x, "winclose", self.close)):
+            b.setObjectName(name); b.setFixedSize(46, 36); b.clicked.connect(fn); tl.addWidget(b)
+        for g in (Qt.Edge.LeftEdge, Qt.Edge.RightEdge, Qt.Edge.TopEdge, Qt.Edge.BottomEdge, Qt.Edge.LeftEdge | Qt.Edge.TopEdge,
+                  Qt.Edge.RightEdge | Qt.Edge.TopEdge, Qt.Edge.LeftEdge | Qt.Edge.BottomEdge, Qt.Edge.RightEdge | Qt.Edge.BottomEdge):
+            Grip(self, g)
 
         # toolbar
-        self.btn_back, self.btn_fwd, self.btn_reload = QToolButton(), QToolButton(), QToolButton()
-        self.btn_star, self.btn_side, self.btn_menu = QToolButton(), QToolButton(), QToolButton()
-        self.btn_star.setToolTip("Bookmark this page (Ctrl+D)"); self.btn_side.setToolTip("Sidebar (Ctrl+B)")
-        self.btn_side.setCheckable(True)
-        self.url = QLineEdit(placeholderText="Search or enter address")
+        self.btn_back, self.btn_fwd, self.btn_reload, self.btn_home = QToolButton(), QToolButton(), QToolButton(), QToolButton()
+        self.btn_star, self.btn_dl, self.btn_menu = QToolButton(), QToolButton(), QToolButton()
+        self.btn_star.setToolTip("Bookmark this page (Ctrl+D)"); self.btn_dl.setToolTip("Downloads (Ctrl+J)")
+        self.btn_back.setToolTip("Back (Alt+Left)"); self.btn_fwd.setToolTip("Forward (Alt+Right)"); self.btn_reload.setToolTip("Reload (Ctrl+R)")
+        self.btn_home.setToolTip("Home")
+        self.url = QLineEdit(placeholderText="Search or enter address"); self.url.setObjectName("url"); self.url.setClearButtonEnabled(True)
+        self.url_mark = self.url.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
         self.shield = QLabel(); self.shield.setObjectName("muted")
         self.bar = QWidget(); self.bar.setObjectName("bar"); bl = QHBoxLayout(self.bar)
         bl.setContentsMargins(8, 7, 8, 7); bl.setSpacing(4)
-        for w in (self.btn_back, self.btn_fwd, self.btn_reload): bl.addWidget(w)
+        for w in (self.btn_back, self.btn_fwd, self.btn_reload, self.btn_home): bl.addWidget(w)
         bl.addWidget(self.url, 1)
-        for w in (self.shield, self.btn_star, self.btn_side, self.btn_menu): bl.addWidget(w)
+        for w in (self.shield, self.btn_star, self.btn_dl, self.btn_menu): bl.addWidget(w)
 
         # bookmarks bar, update banner, find bar
         self.bmbar = QWidget(); self.bmbar.setObjectName("bmbar")
@@ -146,11 +206,24 @@ class Browser(QMainWindow):
         QShortcut(QKeySequence("Esc"), self.find, activated=self.hide_find, context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
         # body
+        self.rail = QWidget(); self.rail.setObjectName("rail"); self.rail.setFixedWidth(54)
+        self.rail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        rl = QVBoxLayout(self.rail); rl.setContentsMargins(7, 12, 7, 12); rl.setSpacing(6)
+        self.rail_btns = {}
+        for key, tip in (("home", "Home"), ("bookmark", "Bookmarks (Ctrl+B)"), ("history", "History (Ctrl+H)"), ("download", "Downloads (Ctrl+J)")):
+            b = QToolButton(); b.setObjectName("railbtn"); b.setToolTip(tip); b.setCheckable(key != "home"); self.rail_btns[key] = b; rl.addWidget(b)
+        rl.addStretch()
+        self.btn_set = QToolButton(); self.btn_set.setObjectName("railbtn"); self.btn_set.setToolTip("Settings (Ctrl+,)"); rl.addWidget(self.btn_set)
+        self.rail_btns["home"].clicked.connect(lambda: self.open_here(self.newtab_url()))
+        for i, k in enumerate(("bookmark", "history", "download")): self.rail_btns[k].clicked.connect(lambda _c, i=i: self.toggle_sidebar(i))
+        self.btn_set.clicked.connect(lambda: self.open_settings())
+        self.btn_home.clicked.connect(lambda: self.open_here(self.newtab_url()))
+        self.btn_dl.clicked.connect(lambda: self.toggle_sidebar(2))
         self.sidebar = Sidebar(store); self.sidebar.hide()
         self.sidebar.openUrl.connect(lambda u, new: self.new_tab(u) if new else self.open_here(u))
         self.sidebar.bookmarks.changed = self.on_bookmarks_changed
         body = QWidget(); bh = QHBoxLayout(body); bh.setContentsMargins(0, 0, 0, 0); bh.setSpacing(0)
-        bh.addWidget(self.sidebar); bh.addWidget(self.stack, 1)
+        bh.addWidget(self.rail); bh.addWidget(self.sidebar); bh.addWidget(self.stack, 1)
         root = QWidget(); v = QVBoxLayout(root); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(0)
         for w in (self.top, self.bar, self.bmbar, self.banner, self.find): v.addWidget(w)
         v.addWidget(body, 1); self.setCentralWidget(root)
@@ -176,7 +249,6 @@ class Browser(QMainWindow):
         self.btn_fwd.clicked.connect(lambda: self.cur() and self.cur().forward())
         self.btn_reload.clicked.connect(self.reload_or_stop)
         self.btn_star.clicked.connect(self.toggle_bookmark)
-        self.btn_side.clicked.connect(lambda: self.toggle_sidebar(None))
         self.url.returnPressed.connect(self.go)
         updater.available.connect(self.on_update_available)
         updater.progress.connect(lambda n: self.banner_text.setText(f"Downloading update… {n}%"))
@@ -186,7 +258,7 @@ class Browser(QMainWindow):
         for p in (profile, private_profile): p.downloadRequested.connect(self.on_download)
         self.setup_shortcuts()
         self.apply_web_settings(); self.blocker.enabled = store.settings["shield"]
-        self.apply_theme()
+        self.apply_theme(); self.place_grips()
         QGuiApplication.styleHints().colorSchemeChanged.connect(
             lambda _s: self.store.settings["appearance"] == "system" and self.apply_theme())
 
@@ -205,13 +277,16 @@ class Browser(QMainWindow):
         fade = Crossfade(self.centralWidget(), self.store)
         qss, self.t = build_theme(resolve_theme(s, self.system_dark()))
         QApplication.instance().setStyleSheet(qss)
-        c = self.t["icon"]
-        for b, n in ((self.btn_plus, "plus"), (self.btn_back, "back"), (self.btn_fwd, "forward"), (self.btn_side, "sidebar"),
-                     (self.btn_menu, "menu"), (self.f_prev, "up"), (self.f_next, "down"), (self.f_close, "close")):
-            b.setIcon(icon(n, c))
+        c, on = self.t["icon"], self.t["on_accent"]
+        for b, n in ((self.btn_plus, "plus"), (self.btn_back, "back"), (self.btn_fwd, "forward"), (self.btn_home, "home"), (self.btn_dl, "download"),
+                     (self.btn_menu, "menu"), (self.f_prev, "up"), (self.f_next, "down"), (self.f_close, "close"),
+                     (self.btn_min, "min"), (self.btn_x, "close"), (self.btn_set, "sliders")):
+            b.setIcon(icon(n, c, on=on))
+        for k, b in self.rail_btns.items(): b.setIcon(icon(k, c, on=on))
+        self.sync_max()
         for i in range(self.stack.count()):
             v = self.stack.widget(i)
-            if not v.shown(): v.load(QUrl(self.newtab_url()))
+            if not v.shown(): v.load(QUrl(NEWTAB))
             self.tabbar.setTabTextColor(i, QColor(self.t["accent"]) if v.private else QColor(self.t["muted"]))
         self.sync_bar(); self.style_titlebar()
         fade.run()
@@ -238,7 +313,7 @@ class Browser(QMainWindow):
         elif key == "bookmarks_bar": self.refresh_bookmarks()
         elif key == "shield": self.blocker.enabled = val
         elif key == "force_dark": self.apply_web_settings()
-        elif key == "engine": self.apply_theme()           # start pages carry the engine
+        elif key == "engine": self.reload_newtabs()
 
     def reload_data(self):
         self.apply_web_settings(); self.blocker.enabled = self.store.settings["shield"]
@@ -248,10 +323,56 @@ class Browser(QMainWindow):
         for p in (self.profile, self.private_profile):
             p.clearHttpCache(); p.cookieStore().deleteAllCookies()
 
-    def newtab_url(self):
-        s, t = self.store.settings, self.t
-        q = urlencode({k: t[k] for k in ("bg", "surface", "line", "text", "muted", "accent", "accent2")} | {"e": ENGINES[s["engine"]], "icons": QUrl.fromLocalFile(str(icon_dir())).toString() + "/"})
-        return NEWTAB_BASE + "?" + q
+    def newtab_url(self): return NEWTAB
+
+    def reload_newtabs(self):
+        for i in range(self.stack.count()):
+            v = self.stack.widget(i)
+            if v.url().toString().startswith(NEWTAB): v.reload()
+
+    def pick_wallpaper(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Choose wallpaper", "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)")
+        if not p: return
+        img = QImage(p)
+        if img.isNull():
+            QMessageBox.warning(self, "Wallpaper", "That file isn't an image Vexora can read."); return
+        if img.width() > 2560 or img.height() > 1440:
+            img = img.scaled(2560, 1440, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        old = list(wallpaper_dir().glob("*"))
+        name = f"wall{int(time.time())}.jpg"
+        if not img.save(str(wallpaper_dir() / name), "JPG", 88):
+            QMessageBox.warning(self, "Wallpaper", "Couldn't save that image."); return
+        self.store.set("wallpaper", name)
+        for f in old: f.unlink(missing_ok=True)
+        self.reload_newtabs()
+
+    def reset_wallpaper(self):
+        for f in wallpaper_dir().glob("*"): f.unlink(missing_ok=True)
+        self.store.set("wallpaper", ""); self.reload_newtabs()
+
+    # ---- frameless window ----
+    def toggle_max(self): self.showNormal() if self.isMaximized() else self.showMaximized()
+
+    def sync_max(self):
+        self.btn_max.setIcon(icon("restore" if self.isMaximized() else "max", self.t["icon"] if self.t else "#888"))
+        self.btn_max.setToolTip("Restore" if self.isMaximized() else "Maximize")
+
+    def place_grips(self):
+        g, w, h = 6, self.width(), self.height()
+        show = not (self.isMaximized() or self.isFullScreen())
+        for s in self.findChildren(Grip, options=Qt.FindChildOption.FindDirectChildrenOnly):
+            E = Qt.Edge
+            x = 0 if E.LeftEdge in s.edges else w - g if E.RightEdge in s.edges else g
+            y = 0 if E.TopEdge in s.edges else h - g if E.BottomEdge in s.edges else g
+            cw = g if (E.LeftEdge in s.edges or E.RightEdge in s.edges) else w - 2 * g
+            ch = g if (E.TopEdge in s.edges or E.BottomEdge in s.edges) else h - 2 * g
+            s.setGeometry(x, y, cw, ch); s.setVisible(show); s.raise_()
+
+    def resizeEvent(self, e): super().resizeEvent(e); self.place_grips()
+
+    def changeEvent(self, e):
+        super().changeEvent(e)
+        if e.type() == e.Type.WindowStateChange and self.t: self.sync_max(); self.place_grips()
 
     # ---- tabs ----
     def cur(self): return self.stack.currentWidget()
@@ -311,6 +432,9 @@ class Browser(QMainWindow):
         u = v.shown()
         if not self.url.hasFocus(): self.url.setText(u)
         self.url.setPlaceholderText("Private tab: nothing is saved" if v.private else "Search or enter address")
+        mark, tip = (("lock", "Connection is secure (HTTPS)") if u.startswith("https://") else ("warn", "Not secure (HTTP)") if u.startswith("http://")
+                     else ("search", "Search or enter an address"))
+        self.url_mark.setIcon(icon(mark, "#e5a13a" if mark == "warn" else self.t["icon"])); self.url_mark.setToolTip(tip)
         self.btn_back.setEnabled(v.history().canGoBack()); self.btn_fwd.setEnabled(v.history().canGoForward())
         loading = v.isLoading() if hasattr(v, "isLoading") else False
         self.btn_reload.setIcon(icon("stop" if loading else "reload", self.t["icon"]))
@@ -363,7 +487,11 @@ class Browser(QMainWindow):
         else:
             self.sidebar.show(); self.sidebar.show_page(page)
         if self.sidebar.isVisible() and page is None: self.sidebar.refresh()
-        self.btn_side.setChecked(self.sidebar.isVisible())
+        self.sync_rail()
+
+    def sync_rail(self):
+        cur = self.sidebar.stack.currentIndex() if self.sidebar.isVisible() else -1
+        for i, k in enumerate(("bookmark", "history", "download")): self.rail_btns[k].setChecked(i == cur)
 
     def show_find(self):
         self.find.show(); self.find_input.setFocus(); self.find_input.selectAll()
@@ -394,7 +522,11 @@ class Browser(QMainWindow):
         eng = ENGINES[self.store.settings["engine"]]
         Palette(self, E, lambda text: self.open_here(resolve(text, eng))).popup()
 
-    def open_settings(self): Settings(self).exec()
+    def open_settings(self, page=None):
+        d = Settings(self)
+        for i in range(d.nav.count()):
+            if page and d.nav.item(i).text() == page: d.nav.setCurrentRow(i)
+        d.exec()
 
     # ---- session ----
     def session_file(self):
@@ -404,18 +536,22 @@ class Browser(QMainWindow):
 
     def save(self):
         tabs = [self.stack.widget(i) for i in range(self.stack.count())]
-        urls = [(v.shown() or NEWTAB_BASE) for v in tabs if not v.private]
-        try: self.session_file().write_text(json.dumps({"urls": urls, "active": self.tabbar.currentIndex()}))
+        keep = [v for v in tabs if not v.private]
+        cur = self.cur()
+        active = keep.index(cur) if cur in keep else 0           # index among the saved (non-private) tabs
+        urls = [(v.shown() or NEWTAB) for v in keep]
+        try: self.session_file().write_text(json.dumps({"urls": urls, "active": active}))
         except OSError: pass
 
     def restore(self):
         try: s = json.loads(self.session_file().read_text())
         except (OSError, ValueError): s = {}
-        saved = s.get("urls", []) if self.store.settings["restore_tabs"] else []
-        urls = [self.newtab_url() if u.startswith(NEWTAB_BASE) else u for u in saved
-                if u.startswith(("http://", "https://")) or u.startswith(NEWTAB_BASE)] or [self.newtab_url()]
+        saved = s.get("urls", []) if self.store.settings["restore_tabs"] and isinstance(s.get("urls"), list) else []
+        urls = [u for u in saved if isinstance(u, str) and (u.startswith(("http://", "https://")) or u.startswith(NEWTAB))] or [NEWTAB]
         for u in urls: self.new_tab(u, activate=False)
-        self.tabbar.setCurrentIndex(min(max(int(s.get("active", 0)), 0), len(urls) - 1))
+        try: act = int(s.get("active", 0))
+        except (TypeError, ValueError): act = 0
+        self.tabbar.setCurrentIndex(min(max(act, 0), len(urls) - 1))
         self.refresh_bookmarks()
 
     # ---- misc ----
@@ -445,7 +581,7 @@ class Browser(QMainWindow):
     def on_fullscreen(self, req):
         req.accept(); on = req.toggleOn()
         if on:
-            self._hidden = [w for w in (self.top, self.bar, self.bmbar, self.sidebar) if w.isVisible()]
+            self._hidden = [w for w in (self.top, self.bar, self.bmbar, self.rail, self.sidebar) if w.isVisible()]
             for w in self._hidden: w.hide()
         else:
             for w in getattr(self, "_hidden", []): w.show()
@@ -464,7 +600,7 @@ class Browser(QMainWindow):
             while p.exists():
                 p = folder / f"{Path(name).stem} ({n}){Path(name).suffix}"; n += 1
         dl.setDownloadDirectory(str(p.parent)); dl.setDownloadFileName(p.name); dl.accept()
-        self.sidebar.downloads.add(dl); self.sidebar.show(); self.sidebar.show_page(2); self.btn_side.setChecked(True)
+        self.sidebar.downloads.add(dl); self.sidebar.show(); self.sidebar.show_page(2); self.sync_rail()
 
     def refresh_shield(self):
         n = self.blocker.count
@@ -494,6 +630,7 @@ def make_profile(app, name, ua, blocker):
 
 
 def main():
+    register_scheme()                                  # must happen before QApplication exists
     app = QApplication(sys.argv)
     app.setApplicationName("Vexora"); app.setStyle("Fusion")
     store = Store(); app.aboutToQuit.connect(store.flush)
@@ -501,7 +638,7 @@ def main():
     # Google refuses sign-in from agents that announce QtWebEngine; present as plain Chromium.
     ua = re.sub(r"\s*QtWebEngine/\S+", "", QWebEngineProfile.defaultProfile().httpUserAgent())
     win = Browser(make_profile(app, "Vexora", ua, blocker), make_profile(app, None, ua, blocker), blocker, Updater(), store)
-    win.show(); win.style_titlebar()
+    win.show()
     sys.exit(app.exec())
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QBrush, QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
-from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMenu,
+from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QInputDialog, QLineEdit, QListWidget, QListWidgetItem, QMenu,
                                QMessageBox, QPushButton, QStackedWidget, QVBoxLayout, QWidget)
 
 URL = Qt.ItemDataRole.UserRole
@@ -28,13 +28,15 @@ class Page(QWidget):
         v.addWidget(self.list, 1)
         self.body = v
 
-    def menu(self, pos, remover=None):
+    def menu(self, pos, remover=None, extra=None):
         it = self.list.itemAt(pos)
         if not it or not it.data(URL):
             return
         url, m = it.data(URL), QMenu(self)
         m.addAction("Open in new tab", lambda: self.openUrl.emit(url, True))
         m.addAction("Copy address", lambda: QGuiApplication.clipboard().setText(url))
+        if extra:
+            extra(m, url)
         if remover:
             m.addSeparator()
             m.addAction("Remove", lambda: remover(url))
@@ -46,11 +48,30 @@ class Bookmarks(Page):
         super().__init__("Search bookmarks")
         self.store = store
         self.search.textChanged.connect(self.refresh)
-        self.list.itemClicked.connect(lambda i: self.openUrl.emit(i.data(URL), False))
-        self.list.customContextMenuRequested.connect(lambda p: self.menu(p, self.remove))
+        self.list.itemClicked.connect(lambda i: i.data(URL) and self.openUrl.emit(i.data(URL), False))
+        self.list.customContextMenuRequested.connect(lambda p: self.menu(p, self.remove, self.folder_menu))
 
     def remove(self, url):
         self.store.remove_bookmark(url)
+        self.refresh()
+        self.changed()
+
+    def folder_menu(self, m, url):
+        sub = m.addMenu("Move to folder")
+        sub.addAction("No folder", lambda: self.move(url, ""))
+        for name, _items in self.store.folders():
+            if name:
+                sub.addAction(name, lambda n=name: self.move(url, n))
+        sub.addSeparator()
+        sub.addAction("New folder…", lambda: self.new_folder(url))
+
+    def new_folder(self, url):
+        name, ok = QInputDialog.getText(self, "New folder", "Folder name")
+        if ok and name.strip():
+            self.move(url, name.strip())
+
+    def move(self, url, folder):
+        self.store.set_folder(url, folder)
         self.refresh()
         self.changed()
 
@@ -59,8 +80,16 @@ class Bookmarks(Page):
     def refresh(self):
         q = self.search.text().lower()
         self.list.clear()
-        for b in self.store.bookmarks:
-            if q in (b["title"] + b["url"]).lower():
+        for folder, items in self.store.folders():
+            rows = [b for b in items if q in (b["title"] + b["url"] + folder).lower()]
+            if not rows:
+                continue
+            if not q:
+                head = QListWidgetItem((folder or "Others").upper())
+                head.setFlags(Qt.ItemFlag.NoItemFlags)
+                head.setForeground(QBrush(QColor("#8a8a93")))
+                self.list.addItem(head)
+            for b in rows:
                 it = QListWidgetItem(self.store.icon(b["url"]), f'{b["title"]}\n{b["url"]}')
                 it.setData(URL, b["url"])
                 self.list.addItem(it)

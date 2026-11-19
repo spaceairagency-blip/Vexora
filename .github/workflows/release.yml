@@ -27,7 +27,7 @@ jobs:
       - name: Build app
         run: >
           pyinstaller --noconfirm --windowed --name Vexora --icon assets/icon.ico
-          --add-data "newtab.html;." --add-data "resolve.js;." --add-data "trackers.json;."
+          --add-data "trackers.json;."
           --add-data "assets;assets" main.py
 
       - name: Trim unused Qt parts and fingerprint the heavy base
