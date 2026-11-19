@@ -5,7 +5,7 @@ Engine: Qt WebEngine (Chromium) through PySide6, Qt Widgets shell. No Node.
 Working: tabs, private tabs (off-the-record profile), back/forward/reload, address bar with URL/search resolution,
 bookmarks bar + sidebar (flat list), history (5000 entries), downloads list, find in page, Ctrl+K palette
 (actions/tabs/bookmarks/history), zoom, devtools, fullscreen, session restore, tracker blocking (79 domains, real counter),
-force-dark pages, JSON backup/restore, auto-updater, installer, release workflow.
+force-dark pages, JSON backup/restore, auto-updater, installer, release workflow...
 
 ## Known problems found
 1. Every web permission (camera, mic, location, notifications, clipboard) is silently denied; there is no way to grant one.
