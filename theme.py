@@ -82,10 +82,10 @@ def resolve(settings, system_dark=True):
 
 
 QSS = Template("""
-QWidget { background:$bg; color:$text; font:13px "Segoe UI"; }
+QWidget { background:$bg; color:$text; font:14px "Segoe UI"; }
 QLabel { background:transparent; }
 QLabel#muted { color:$muted; font-size:12px; }
-QLabel#title { font-size:15px; font-weight:600; }
+QLabel#title { font-size:16px; font-weight:600; }
 #bar, #banner, #find, #sidebar, #bmbar { background:$surface; }
 #bar, #banner, #find, #bmbar { border-bottom:1px solid $line; }
 #sidebar { border-right:1px solid $line; }
@@ -94,7 +94,7 @@ QToolButton:hover { background:$hover; }
 QToolButton::menu-indicator { image:none; }
 QToolButton#bm { padding:4px 8px; color:$muted; }
 QToolButton#bm:hover { color:$text; }
-QLineEdit { background:$bg; border:1px solid transparent; border-radius:10px; padding:8px 14px; selection-background-color:$accent; selection-color:$on_accent; }
+QLineEdit { background:$bg; border:1px solid transparent; border-radius:12px; padding:8px 14px; selection-background-color:$accent; selection-color:$on_accent; }
 QLineEdit:focus { border-color:$accent; }
 #sidebar QWidget { background:transparent; }
 QLineEdit#sbsearch { background:$bg; margin:0 10px; }
@@ -127,7 +127,7 @@ QListWidget::item { padding:7px 10px; border-radius:6px; margin:1px 6px; }
 QListWidget::item:hover, QListWidget::item:selected { background:$hover; color:$text; }
 QListWidget#nav::item { padding:8px 12px; margin:1px 8px; }
 QListWidget#nav::item:selected { background:$hover; }
-QMenu { background:$surface; border:1px solid $line; padding:4px; }
+QMenu { background:$surface; border:1px solid $line; border-radius:6px; padding:4px; }
 QMenu::item { padding:6px 22px 6px 12px; border-radius:4px; }
 QMenu::item:selected { background:$hover; }
 QMenu::separator { height:1px; background:$line; margin:4px 8px; }
@@ -140,12 +140,12 @@ QComboBox::drop-down { border:0; width:20px; }
 QSlider::groove:horizontal { height:4px; background:$line; border-radius:2px; }
 QSlider::sub-page:horizontal { background:$accent; border-radius:2px; }
 QSlider::handle:horizontal { width:14px; height:14px; margin:-5px 0; border-radius:7px; background:$text; }
-QScrollBar:vertical { width:10px; background:transparent; }
-QScrollBar::handle:vertical { background:$hover; border-radius:5px; min-height:24px; }
+QScrollBar:vertical { width:12px; background:transparent; }
+QScrollBar::handle:vertical { background:$hover; border-radius:6px; min-height:24px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
 QDialog { background:$bg; }
 #palette { background:$surface; border:1px solid $line; border-radius:10px; }
-QToolTip { background:$surface; color:$text; border:1px solid $line; }
+QToolTip { background:$surface; color:$text; border:1px solid $line; border-radius:4px; }
 """)
 
 
