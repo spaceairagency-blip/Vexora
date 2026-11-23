@@ -3,8 +3,11 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write   # lets the built-in token create releases in THIS repo
+
 env:
-  RELEASES_REPO: spaceairagency-blip/vexora-releases   # PUBLIC repo that holds installers only
+  RELEASES_REPO: ${{ github.repository }}   # same repo: spaceairagency-blip/Vexora
 
 jobs:
   build:
@@ -43,10 +46,10 @@ jobs:
       - name: Build small update patch and manifest
         run: python tools/build_tools.py manifest dist/Vexora dist-installer
 
-      - name: Publish to the public releases repo
+      - name: Publish release to this repo
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd dist-installer
           sha256sum Vexora-Setup.exe | cut -d' ' -f1 > Vexora-Setup.exe.sha256
