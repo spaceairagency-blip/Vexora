@@ -4,15 +4,13 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write   # lets the built-in token create releases in THIS repo
+  contents: write
 
 env:
-  RELEASES_REPO: ${{ github.repository }}   # same repo: spaceairagency-blip/Vexora
+  RELEASES_REPO: ${{ github.repository }}
 
 jobs:
-  # ---------------------------------------------------------------
-  # Windows: installer, patch, update.json (creates the release)
-  # ---------------------------------------------------------------
+  # ---------------- Windows: installer, patch, update.json ----------------
   build:
     runs-on: windows-latest
     steps:
@@ -59,9 +57,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" Vexora-Setup.exe Vexora-Setup.exe.sha256 Vexora-Patch.zip update.json \
             --repo "$RELEASES_REPO" --title "Vexora $V" --notes "Vexora $V"
 
-  # ---------------------------------------------------------------
-  # Linux: tar.gz build (waits for the release to exist, then adds to it)
-  # ---------------------------------------------------------------
+  # ---------------- Linux: tar.gz ----------------
   build-linux:
     needs: build
     runs-on: ubuntu-22.04
@@ -99,4 +95,38 @@ jobs:
           sha256sum Vexora-Linux-x86_64.tar.gz | cut -d' ' -f1 > Vexora-Linux-x86_64.tar.gz.sha256
           gh release upload "$GITHUB_REF_NAME" \
             Vexora-Linux-x86_64.tar.gz Vexora-Linux-x86_64.tar.gz.sha256 \
+            --repo "$RELEASES_REPO"
+
+  # ---------------- macOS: .app zipped (Apple Silicon) ----------------
+  build-macos:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+
+      - name: Stamp version
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          sed -i '' "s/^VERSION = .*/VERSION = \"$V\"/" version.py
+          sed -i '' "s#^REPO = .*#REPO = \"$RELEASES_REPO\"#" version.py
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build app
+        run: >
+          pyinstaller --noconfirm --windowed --name Vexora
+          --add-data "trackers.json:."
+          --add-data "assets:assets" main.py
+
+      - name: Package and upload to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          ditto -c -k --keepParent Vexora.app Vexora-macOS-arm64.zip
+          shasum -a 256 Vexora-macOS-arm64.zip | cut -d' ' -f1 > Vexora-macOS-arm64.zip.sha256
+          gh release upload "$GITHUB_REF_NAME" \
+            Vexora-macOS-arm64.zip Vexora-macOS-arm64.zip.sha256 \
             --repo "$RELEASES_REPO"
