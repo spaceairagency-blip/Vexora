@@ -1,3 +1,9 @@
+import os, sys  # VEXORA_LINUX_GPU_FIX
+if sys.platform.startswith("linux"):
+    _f = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    if "--disable-features=Vulkan" not in _f:
+        os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (_f + " --disable-features=Vulkan").strip()
+
 import ctypes, json, re, sys, time
 from pathlib import Path
 from urllib.parse import quote, urlencode
